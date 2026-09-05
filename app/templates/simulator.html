@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}What-if 시뮬레이터 — 안양 균형발전 내비게이터{% endblock %}
+{% block content %}
+<div class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-3">기본 데모 시나리오</h2>
+  <p class="text-sm text-slate-600 mb-3">{{ scenarios.yangji.name }} — {{ scenarios.yangji.description }}</p>
+  <form method="post" action="/simulator">
+    <input type="hidden" name="scenario_id" value="yangji">
+    <button class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700">양지마을 시나리오 실행</button>
+  </form>
+</div>
+
+<div class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-3">사용자 정의 시나리오</h2>
+  <form method="post" action="/simulator" class="grid sm:grid-cols-4 gap-3 items-end text-sm">
+    <div>
+      <label class="block text-slate-500 mb-1">지역(구)</label>
+      <select name="region" class="w-full border border-slate-300 rounded-md px-2 py-2">
+        {% for gu in gu_list %}
+        <option value="{{ gu }}" {% if form.region == gu %}selected{% endif %}>{{ gu }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-slate-500 mb-1">시설 유형</label>
+      <select name="facility" class="w-full border border-slate-300 rounded-md px-2 py-2">
+        {% for f in facility_list %}
+        <option value="{{ f }}" {% if form.facility == f %}selected{% endif %}>{{ f }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-slate-500 mb-1">신규 시설 개소</label>
+      <input type="number" name="num_facilities" min="0" value="{{ form.num_facilities or 1 }}"
+        class="w-full border border-slate-300 rounded-md px-2 py-2">
+    </div>
+    <div>
+      <button class="w-full bg-slate-800 text-white px-3 py-2 rounded-md hover:bg-slate-900">시뮬레이션 실행</button>
+    </div>
+  </form>
+</div>
+
+{% if result %}
+<div class="bg-white rounded-xl border border-slate-200 p-5">
+  <h2 class="text-sm font-semibold text-slate-500 mb-4">시뮬레이션 결과 — {{ result.region }} · {{ result.facility }} {{ result.num_facilities }}개소</h2>
+  <div class="grid sm:grid-cols-3 gap-4 mb-4">
+    <div class="bg-slate-50 rounded-lg p-4">
+      <div class="text-xs text-slate-500">현재 격차 (만안구-동안구)</div>
+      <div class="text-xl font-bold">{{ result.current_gap }}%p</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-4">
+      <div class="text-xs text-slate-500">예상 감소폭</div>
+      <div class="text-xl font-bold text-blue-600">-{{ result.estimated_reduction }}%p</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-4">
+      <div class="text-xs text-slate-500">시뮬레이션 후 격차</div>
+      <div class="text-xl font-bold">{{ result.projected_gap }}%p</div>
+    </div>
+  </div>
+  <p class="text-xs text-amber-600 mb-4">※ {{ result.assumption_note }}</p>
+  <pre class="text-sm whitespace-pre-wrap bg-slate-50 rounded-md p-4">{{ report }}</pre>
+</div>
+{% endif %}
+{% endblock %}

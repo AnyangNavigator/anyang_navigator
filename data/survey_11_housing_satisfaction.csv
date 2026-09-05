@@ -1,0 +1,6 @@
+﻿region,house_very_sat,house_sat,house_neutral,house_dissat,house_very_dissat,infra_very_sat,infra_sat,infra_neutral,infra_dissat,infra_very_dissat,parking_very_sat,parking_sat,parking_neutral,parking_dissat,parking_very_dissat,parking_dontknow,parking_dissat_total
+안양시 전체,20.3,30.7,34.1,11.9,2.9,23.1,32.4,35.6,7.2,1.6,15.3,22.4,29.0,17.9,11.9,3.5,29.799999999999997
+안양시 전체(2023),17.0,31.6,36.5,12.4,2.4,20.8,34.1,34.9,8.4,1.8,14.5,21.8,33.0,18.0,10.3,2.4,28.3
+안양시 전체(2021),14.3,29.2,38.6,12.4,5.5,18.1,31.9,38.4,8.0,3.6,11.5,23.1,34.8,15.1,12.9,2.6,28.0
+만안구,19.7,29.1,35.6,12.1,3.5,23.0,30.0,37.6,7.8,1.6,14.5,21.7,29.3,18.3,11.1,5.1,29.4
+동안구,20.8,31.8,33.1,11.8,2.5,23.2,34.2,34.2,6.7,1.7,15.8,23.0,28.8,17.6,12.4,2.4,30.0

@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}대시보드 — 안양 균형발전 내비게이터{% endblock %}
+{% block extra_head %}
+<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId={{ naver_map_client_id }}&submodules=geocoder"></script>
+{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <form method="get" class="flex items-center gap-3">
+    <label for="dong" class="text-sm font-medium text-slate-600">행정동 선택</label>
+    <select name="dong" id="dong" onchange="this.form.submit()"
+      class="border border-slate-300 rounded-md px-3 py-2 text-sm bg-white">
+      {% for gu, dongs in dong_by_gu.items() %}
+      <optgroup label="{{ gu }}">
+        {% for d in dongs %}
+        <option value="{{ d }}" {% if d == selected_dong %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="grid md:grid-cols-2 gap-6">
+  <section class="bg-white rounded-xl border border-slate-200 p-5">
+    <h2 class="text-sm font-semibold text-slate-500 mb-1">동 단위 통계 — {{ density.dong }}</h2>
+    <p class="text-xs text-slate-400 mb-4">{{ density.gu }} 소속 · 2025.12.31 주민등록인구 기준</p>
+    <dl class="grid grid-cols-2 gap-y-3 text-sm">
+      <dt class="text-slate-500">총인구</dt><dd class="font-semibold">{{ "{:,}".format(density.total_population) }}명</dd>
+      <dt class="text-slate-500">세대수</dt><dd class="font-semibold">{{ "{:,}".format(density.households) }}세대</dd>
+      <dt class="text-slate-500">평균 가구원수</dt><dd class="font-semibold">{{ density.avg_household_size }}명</dd>
+    </dl>
+  </section>
+
+  <section class="bg-white rounded-xl border border-slate-200 p-5">
+    <h2 class="text-sm font-semibold text-slate-500 mb-1">구 단위 통계 — {{ gu_stats.gu }}</h2>
+    <p class="text-xs text-slate-400 mb-4">2025 안양시 사회조사 (만안구/동안구 2개 구간만 존재, {{ density.dong }} 자체 수치 아님)</p>
+    <dl class="grid grid-cols-2 gap-y-3 text-sm">
+      <dt class="text-slate-500">주차장 체감 불만족</dt>
+      <dd class="font-semibold">{{ gu_stats.housing_satisfaction.parking_dissat_total | round(1) }}%</dd>
+      <dt class="text-slate-500">공영주차시설 필요</dt>
+      <dd class="font-semibold">{{ gu_stats.needed_facilities["공영주차시설"] }}%</dd>
+      <dt class="text-slate-500">보건의료시설 필요</dt>
+      <dd class="font-semibold">{{ gu_stats.needed_facilities["보건의료시설"] }}%</dd>
+      <dt class="text-slate-500">지역 불만족 비율</dt>
+      <dd class="font-semibold">{{ gu_stats.dissatisfaction_reasons["불만족_total"] }}%</dd>
+    </dl>
+  </section>
+</div>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-4">향후 필요 시설 격차 (만안구 vs 동안구, %p)</h2>
+  <canvas id="gapChart" height="90"></canvas>
+</section>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-1">행정동 지도</h2>
+  <p class="text-xs text-slate-400 mb-3">원 크기 = 인구수, 파란색 = 만안구, 주황색 = 동안구. 클릭하면 해당 동으로 이동합니다.</p>
+  <div id="map" style="width:100%;height:420px;border-radius:0.5rem;background:#f1f5f9;"></div>
+  <p id="mapStatus" class="text-xs text-slate-400 mt-2"></p>
+</section>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-sm font-semibold text-slate-500">AI 진단 리포트</h2>
+    <button id="reportBtn" class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700">리포트 생성</button>
+  </div>
+  <pre id="reportOutput" class="text-sm whitespace-pre-wrap text-slate-700"></pre>
+</section>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-3">챗봇에게 물어보기</h2>
+  <form id="chatForm" class="flex gap-2 mb-3">
+    <input id="chatInput" type="text" placeholder="예: 주차시설은 어때? / 옆 구랑 비교해줘"
+      class="flex-1 border border-slate-300 rounded-md px-3 py-2 text-sm">
+    <button class="text-xs bg-slate-800 text-white px-3 py-2 rounded-md hover:bg-slate-900">질문</button>
+  </form>
+  <div id="chatLog" class="space-y-2 text-sm"></div>
+</section>
+
+<script>
+const gapData = {{ needed_gap | tojson }};
+new Chart(document.getElementById('gapChart'), {
+  type: 'bar',
+  data: {
+    labels: Object.keys(gapData),
+    datasets: [{
+      label: '만안구 - 동안구 격차 (%p)',
+      data: Object.values(gapData),
+      backgroundColor: Object.values(gapData).map(v => v >= 0 ? '#2563eb' : '#f59e0b'),
+    }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } } }
+});
+
+const selectedDong = {{ selected_dong | tojson }};
+
+document.getElementById('reportBtn').addEventListener('click', async () => {
+  const out = document.getElementById('reportOutput');
+  out.textContent = '생성 중...';
+  const res = await fetch(`/api/report/${encodeURIComponent(selectedDong)}`);
+  const json = await res.json();
+  out.textContent = json.report;
+});
+
+function addChatLine(text, cls) {
+  const log = document.getElementById('chatLog');
+  const div = document.createElement('div');
+  div.className = cls;
+  div.textContent = text;
+  log.appendChild(div);
+}
+
+document.getElementById('chatForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('chatInput');
+  const q = input.value.trim();
+  if (!q) return;
+  addChatLine(`Q. ${q}`, 'text-slate-500');
+  input.value = '';
+  const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question: q, dong: selectedDong })
+  });
+  const json = await res.json();
+  addChatLine(json.answer, 'whitespace-pre-wrap bg-slate-50 rounded-md p-2');
+});
+
+const dongSummary = {{ dong_summary | tojson }};
+const mapStatus = document.getElementById('mapStatus');
+
+function initNaverMap() {
+  if (typeof naver === 'undefined' || !naver.maps) {
+    mapStatus.textContent = '지도를 불러오지 못했습니다. NCP 콘솔에서 이 애플리케이션의 Web 서비스 URL에 현재 접속 주소가 등록되어 있는지 확인해주세요.';
+    return;
+  }
+  const map = new naver.maps.Map('map', {
+    center: new naver.maps.LatLng(37.4, 127.0),
+    zoom: 12,
+  });
+  const bounds = new naver.maps.LatLngBounds();
+  let done = 0;
+  let failed = 0;
+
+  dongSummary.forEach(d => {
+    naver.maps.Service.geocode({ query: `경기도 안양시 ${d.gu} ${d.dong}` }, (status, response) => {
+      done++;
+      if (status !== naver.maps.Service.Status.OK || !response.v2.addresses.length) {
+        failed++;
+        finishIfDone();
+        return;
+      }
+      const addr = response.v2.addresses[0];
+      const position = new naver.maps.LatLng(Number(addr.y), Number(addr.x));
+      bounds.extend(position);
+      const color = d.gu === '만안구' ? '#2563eb' : '#f59e0b';
+      const radius = Math.max(6, Math.round(Math.sqrt(d.population) / 12));
+      const isSelected = d.dong === selectedDong;
+      new naver.maps.Marker({
+        position,
+        map,
+        title: d.dong,
+        icon: {
+          content: `<div style="width:${radius * 2}px;height:${radius * 2}px;border-radius:50%;background:${color};opacity:0.8;border:${isSelected ? 3 : 1}px solid ${isSelected ? '#0f172a' : 'white'};"></div>`,
+          anchor: new naver.maps.Point(radius, radius),
+        },
+      }).addListener('click', () => {
+        window.location.href = `/dashboard?dong=${encodeURIComponent(d.dong)}`;
+      });
+      finishIfDone();
+    });
+  });
+
+  function finishIfDone() {
+    if (done !== dongSummary.length) return;
+    const geocoded = done - failed;
+    if (geocoded > 0) map.fitBounds(bounds);
+    mapStatus.textContent = failed > 0
+      ? `${geocoded}개 동 표시 완료 (${failed}개 동은 지오코딩 실패). 계속 실패하면 NCP 콘솔에서 이 애플리케이션에 'Maps > Geocoding'도 함께 활성화했는지 확인해주세요.`
+      : `${geocoded}개 행정동 표시 완료.`;
+  }
+}
+
+initNaverMap();
+</script>
+{% endblock %}
