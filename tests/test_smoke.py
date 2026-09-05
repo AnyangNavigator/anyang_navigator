@@ -65,6 +65,18 @@ def test_api_chat():
     assert "answer" in res.json()
 
 
+def test_api_dong_boundaries():
+    res = client.get("/api/dong-boundaries")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["type"] == "FeatureCollection"
+    assert len(body["features"]) == 31
+    dongs = {f["properties"]["dong"] for f in body["features"]}
+    assert "안양1동" in dongs
+    # 인구 데이터와 조인이 잘 됐는지 확인 (population_by_dong.csv와 행정동명이 어긋나면 None이 나옴)
+    assert all(f["properties"]["total_population"] is not None for f in body["features"])
+
+
 def test_api_simulate():
     res = client.post(
         "/api/simulate",

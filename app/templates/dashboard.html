@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}대시보드 — 안양 균형발전 내비게이터{% endblock %}
 {% block extra_head %}
-<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId={{ naver_map_client_id }}&submodules=geocoder"></script>
+<script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId={{ naver_map_client_id }}"></script>
 {% endblock %}
 {% block content %}
 <div class="mb-6">
@@ -54,8 +54,9 @@
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
   <h2 class="text-sm font-semibold text-slate-500 mb-1">행정동 지도</h2>
-  <p class="text-xs text-slate-400 mb-3">원 크기 = 인구수, 파란색 = 만안구, 주황색 = 동안구. 클릭하면 해당 동으로 이동합니다.</p>
+  <p class="text-xs text-slate-400 mb-3">색상 = 행정동 인구 규모 5단계(choropleth, 진할수록 인구 많음). 클릭하면 해당 동으로 이동합니다.</p>
   <div id="map" style="width:100%;height:420px;border-radius:0.5rem;background:#f1f5f9;"></div>
+  <div id="mapLegend" class="flex items-center flex-wrap gap-3 mt-3 text-xs text-slate-500"></div>
   <p id="mapStatus" class="text-xs text-slate-400 mt-2"></p>
 </section>
 
@@ -126,59 +127,99 @@ document.getElementById('chatForm').addEventListener('submit', async (e) => {
   addChatLine(json.answer, 'whitespace-pre-wrap bg-slate-50 rounded-md p-2');
 });
 
-const dongSummary = {{ dong_summary | tojson }};
 const mapStatus = document.getElementById('mapStatus');
 
-function initNaverMap() {
+// choropleth 색상 단계: 값(인구)을 5분위로 나눠 순차 팔레트(연한→진한 파랑)를 매긴다.
+const CHOROPLETH_COLORS = ['#eff6ff', '#bfdbfe', '#60a5fa', '#3b82f6', '#1e3a8a'];
+
+function computeQuantileScale(values, colors) {
+  const sorted = values.filter(v => v != null).slice().sort((a, b) => a - b);
+  const n = sorted.length;
+  const breaks = colors.slice(0, -1).map((_, i) => {
+    const p = (i + 1) / colors.length;
+    return sorted[Math.min(n - 1, Math.floor(p * n))];
+  });
+  return { breaks, colors };
+}
+
+function colorForValue(value, scale) {
+  if (value == null) return '#e2e8f0';
+  for (let i = 0; i < scale.breaks.length; i++) {
+    if (value <= scale.breaks[i]) return scale.colors[i];
+  }
+  return scale.colors[scale.colors.length - 1];
+}
+
+// GeoJSON [lng, lat] 좌표를 네이버 지도 LatLng로 변환. Polygon/MultiPolygon 모두
+// "링(외곽+구멍) 배열들의 배열"로 통일해서 반환한다 (폴리곤 1개당 1개 naver.maps.Polygon 생성).
+function geometryToPolygonPathsList(geometry) {
+  const ringsToLatLng = rings => rings.map(ring => ring.map(([lng, lat]) => new naver.maps.LatLng(lat, lng)));
+  if (geometry.type === 'Polygon') return [ringsToLatLng(geometry.coordinates)];
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates.map(ringsToLatLng);
+  return [];
+}
+
+function renderLegend(scale) {
+  const legend = document.getElementById('mapLegend');
+  if (!legend) return;
+  const swatch = color => `<span style="width:14px;height:14px;background:${color};display:inline-block;border-radius:2px;border:1px solid #cbd5e1;vertical-align:-2px;"></span>`;
+  legend.innerHTML =
+    `<span>인구 적음 ${scale.colors.map(swatch).join('')} 인구 많음</span>`;
+}
+
+async function initNaverMap() {
   if (typeof naver === 'undefined' || !naver.maps) {
     mapStatus.textContent = '지도를 불러오지 못했습니다. NCP 콘솔에서 이 애플리케이션의 Web 서비스 URL에 현재 접속 주소가 등록되어 있는지 확인해주세요.';
     return;
   }
+
+  let geojson;
+  try {
+    const res = await fetch('/api/dong-boundaries');
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    geojson = await res.json();
+  } catch (e) {
+    mapStatus.textContent = '행정동 경계 데이터를 불러오지 못했습니다.';
+    return;
+  }
+
   const map = new naver.maps.Map('map', {
-    center: new naver.maps.LatLng(37.4, 127.0),
+    center: new naver.maps.LatLng(37.4, 126.95),
     zoom: 12,
   });
   const bounds = new naver.maps.LatLngBounds();
-  let done = 0;
-  let failed = 0;
+  const scale = computeQuantileScale(
+    geojson.features.map(f => f.properties.total_population),
+    CHOROPLETH_COLORS,
+  );
 
-  dongSummary.forEach(d => {
-    naver.maps.Service.geocode({ query: `경기도 안양시 ${d.gu} ${d.dong}` }, (status, response) => {
-      done++;
-      if (status !== naver.maps.Service.Status.OK || !response.v2.addresses.length) {
-        failed++;
-        finishIfDone();
-        return;
-      }
-      const addr = response.v2.addresses[0];
-      const position = new naver.maps.LatLng(Number(addr.y), Number(addr.x));
-      bounds.extend(position);
-      const color = d.gu === '만안구' ? '#2563eb' : '#f59e0b';
-      const radius = Math.max(6, Math.round(Math.sqrt(d.population) / 12));
-      const isSelected = d.dong === selectedDong;
-      new naver.maps.Marker({
-        position,
+  geojson.features.forEach(feature => {
+    const { dong, total_population } = feature.properties;
+    const isSelected = dong === selectedDong;
+    const fillColor = colorForValue(total_population, scale);
+
+    geometryToPolygonPathsList(feature.geometry).forEach(paths => {
+      paths.forEach(ring => ring.forEach(latlng => bounds.extend(latlng)));
+      const polygon = new naver.maps.Polygon({
         map,
-        title: d.dong,
-        icon: {
-          content: `<div style="width:${radius * 2}px;height:${radius * 2}px;border-radius:50%;background:${color};opacity:0.8;border:${isSelected ? 3 : 1}px solid ${isSelected ? '#0f172a' : 'white'};"></div>`,
-          anchor: new naver.maps.Point(radius, radius),
-        },
-      }).addListener('click', () => {
-        window.location.href = `/dashboard?dong=${encodeURIComponent(d.dong)}`;
+        paths,
+        fillColor,
+        fillOpacity: isSelected ? 0.9 : 0.75,
+        strokeColor: isSelected ? '#0f172a' : '#ffffff',
+        strokeWeight: isSelected ? 3 : 1,
+        strokeOpacity: 0.9,
       });
-      finishIfDone();
+      naver.maps.Event.addListener(polygon, 'click', () => {
+        window.location.href = `/dashboard?dong=${encodeURIComponent(dong)}`;
+      });
+      naver.maps.Event.addListener(polygon, 'mouseover', () => polygon.setOptions('fillOpacity', 0.9));
+      naver.maps.Event.addListener(polygon, 'mouseout', () => polygon.setOptions('fillOpacity', isSelected ? 0.9 : 0.75));
     });
   });
 
-  function finishIfDone() {
-    if (done !== dongSummary.length) return;
-    const geocoded = done - failed;
-    if (geocoded > 0) map.fitBounds(bounds);
-    mapStatus.textContent = failed > 0
-      ? `${geocoded}개 동 표시 완료 (${failed}개 동은 지오코딩 실패). 계속 실패하면 NCP 콘솔에서 이 애플리케이션에 'Maps > Geocoding'도 함께 활성화했는지 확인해주세요.`
-      : `${geocoded}개 행정동 표시 완료.`;
-  }
+  map.fitBounds(bounds);
+  renderLegend(scale);
+  mapStatus.textContent = `${geojson.features.length}개 행정동 경계 표시 완료.`;
 }
 
 initNaverMap();
