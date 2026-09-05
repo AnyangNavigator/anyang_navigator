@@ -36,7 +36,11 @@
 
 브랜치 이름: `<타입>/<영역>-<설명>` (예: `feat/simulator-ranking`, `fix/map-marker-color`)
 
-담당 영역(트랙)은 아직 미정입니다. 정해지면 아래 표와 `.github/CODEOWNERS`를 함께 업데이트하세요.
+| 영역 키워드 | 담당 파트 |
+|---|---|
+| `simulator` | 시뮬레이터 — 예산 대비 효과 다중 시나리오 순위화 (`app/simulator.py`, `app/templates/simulator.html`) |
+| `map` | 지도 — 행정동 경계 GeoJSON choropleth 고도화 (`app/templates/dashboard.html`) |
+| `core`/`api`/`report`/`chat` | 백엔드 코어 — 대시보드/데이터/리포트/챗봇 (`app/main.py`, `app/data.py`, `app/report.py`, `app/chatbot.py`) |
 
 ### 병합 방식 — 가장 중요한 규칙
 
@@ -95,11 +99,11 @@
 
 ## 7. 담당자별 작업 영역
 
-| 영역 | 담당자 | GitHub |
-|------|--------|--------|
-| (아직 미정 — 트랙 정해지면 채우기) | k2hop1213 | [@k2hop1213](https://github.com/k2hop1213) |
-| (아직 미정) | JK-hustler | [@JK-hustler](https://github.com/JK-hustler) |
-| (아직 미정) | sangt633-art | [@sangt633-art](https://github.com/sangt633-art) |
+| 영역 | 담당자 | 브랜치 접두어 | GitHub |
+|------|--------|---------------|--------|
+| PM & 백엔드 코어 (대시보드/데이터/리포트/챗봇) | k2hop1213 | `feat/core-*` | [@k2hop1213](https://github.com/k2hop1213) |
+| 시뮬레이터 (예산 대비 효과 다중 시나리오 순위화) | JK-hustler | `feat/simulator-*` | [@JK-hustler](https://github.com/JK-hustler) |
+| 지도 (행정동 경계 GeoJSON choropleth 고도화) | sangt633-art | `feat/map-*` | [@sangt633-art](https://github.com/sangt633-art) |
 
 > k2hop1213이 `main` 병합의 최종 관리자를 겸합니다.
 
