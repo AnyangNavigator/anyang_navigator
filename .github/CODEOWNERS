@@ -1,16 +1,39 @@
-# CODEOWNERS — 영역별 자동 리뷰어 지정
+# CODEOWNERS — 영역별 자동 리뷰어 지정 (짝 리뷰어 방식)
 #
-# 아직 트랙(담당 영역)을 정하지 않아서 우선은 전체를 3명 공동 소유로 둔다.
-# PR 작성자 본인은 자동으로 리뷰어 요청되지 않으므로, 실질적으로는
-# "내가 아닌 나머지 2명"이 리뷰어로 요청되는 효과가 있다.
+# PR 작성자 본인은 자동으로 리뷰어 요청되지 않는다. 그래서 "오너가 자기
+# 영역을 작업해 PR을 올리면 짝 리뷰어가 자동 요청된다" 구조가 자연스럽게
+# 성립한다. 규칙은 "마지막 매칭 우선" — 아래로 갈수록, 더 구체적인 경로일수록
+# 우선한다. 이 저장소에서 실제로 자동 리뷰 요청이 걸리려면 저장소
+# Settings → Branches 룰에서 "Require review from Code Owners"가 켜져
+# 있어야 한다(이미 설정됨).
 #
-# 나중에 트랙(예: 시뮬레이터/지도/문서)이 정해지면 아래에 세부 경로를
-# 추가하면 된다. 규칙은 "마지막 매칭 우선" — 아래로 갈수록 우선한다.
-# 이 저장소에서 실제로 자동 리뷰 요청이 걸리려면 저장소 Settings → Branches
-# 룰에서 "Require review from Code Owners"가 켜져 있어야 한다(이미 설정됨).
+# 팀:
+#   김규현 (@k2hop1213)   — PM/통합·백엔드 코어
+#   정준기 (@JK-hustler)  — 시뮬레이터(예산 대비 효과 순위화)
+#   이상현 (@sangt633-art) — 지도(choropleth 고도화)
+#
+# 트랙:
+#   PM/통합·백엔드 코어 = 김규현 (짝: 정준기)
+#   시뮬레이터(예산 대비 효과 순위화) = 정준기 (짝: 김규현)
+#   지도(choropleth 고도화) = 이상현 (짝: 김규현)
 
-* @k2hop1213 @JK-hustler @sangt633-art
+# 기본 소유자 (세부 규칙 미매칭 시): PM + 짝
+*                                @k2hop1213 @JK-hustler
 
-# 트랙이 정해지면 예시:
-# /app/simulator.py              @JK-hustler @k2hop1213
-# /app/templates/dashboard.html  @sangt633-art @k2hop1213
+# 백엔드 코어 — 대시보드/리포트/챗봇/데이터 조인 (PM 직접 관리)
+/app/main.py                    @k2hop1213 @JK-hustler
+/app/data.py                    @k2hop1213 @JK-hustler
+/app/report.py                  @k2hop1213 @sangt633-art
+/app/chatbot.py                 @k2hop1213 @sangt633-art
+
+# 시뮬레이터 — 예산 대비 효과 다중 시나리오 순위화
+/app/simulator.py               @JK-hustler @k2hop1213
+/app/templates/simulator.html   @JK-hustler @k2hop1213
+
+# 지도 — 행정동 경계 GeoJSON choropleth 고도화
+/app/templates/dashboard.html   @sangt633-art @k2hop1213
+
+# 인프라 · CI · 협업 규칙
+/.github/                       @k2hop1213 @JK-hustler
+/CONTRIBUTING.md                @k2hop1213 @sangt633-art
+/README.md                      @k2hop1213 @sangt633-art
