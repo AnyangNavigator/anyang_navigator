@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  # ⚠️⚠️ 이 트리거에 절대 branches 필터를 걸지 않는다. ⚠️⚠️
+  # base를 main으로 제한하면 "스택 PR"(base가 다른 feature 브랜치인 PR)에서
+  # CI가 아예 안 돈다 — 체크 목록이 비어 있어 "통과"로 오해하기 쉽지만
+  # 실은 실행조차 안 된 상태다.
+  pull_request:
+
+jobs:
+  # 이 저장소는 app/ 하나뿐인 단일 Python 백엔드라 변경 감지는 단순하게
+  # app/, tests/, requirements*.txt 만 본다. 나중에 폴더가 늘어나면
+  # filters를 추가하면 된다.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'app/**'
+              - 'tests/**'
+              - 'requirements*.txt'
+
+  backend:
+    name: Backend (pytest)
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -c "import app.main"
+      - run: pytest -q
