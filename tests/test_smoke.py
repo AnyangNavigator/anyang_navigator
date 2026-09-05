@@ -6,6 +6,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app import simulator
 
 client = TestClient(app)
 
@@ -72,3 +73,49 @@ def test_api_simulate():
     )
     assert res.status_code == 200
     assert "result" in res.json()
+
+
+def test_api_simulate_rank():
+    res = client.post(
+        "/api/simulate/rank",
+        json={
+            "scenarios": [
+                {"region": "만안구", "facility": "공영주차시설", "budget": 3_000_000_000},
+                {"region": "만안구", "facility": "보건의료시설", "budget": 6_000_000_000},
+            ]
+        },
+    )
+    assert res.status_code == 200
+    ranked = res.json()["ranked"]
+    assert len(ranked) == 2
+    assert ranked[0]["rank"] == 1 and ranked[1]["rank"] == 2
+    # 효율(1억원당 감소폭) 내림차순으로 정렬돼 있어야 한다.
+    effs = [r["efficiency"] for r in ranked]
+    assert effs == sorted(effs, reverse=True)
+
+
+def test_rank_scenarios_reuses_budget_conversion():
+    ranked = simulator.rank_scenarios(
+        [
+            {"region": "만안구", "facility": "공영주차시설", "budget": 3_000_000_000},
+            {"region": "동안구", "facility": "도서관", "num_facilities": 1},
+        ]
+    )
+    assert [r.rank for r in ranked] == [1, 2]
+    # budget 시나리오는 estimate_facility_count로 개소가 환산돼야 한다.
+    parking = next(r for r in ranked if r.result.facility == "공영주차시설")
+    assert parking.result.num_facilities == simulator.estimate_facility_count(
+        "공영주차시설", 3_000_000_000
+    )
+    # num_facilities만 준 시나리오는 예산이 없으므로 효율 0.
+    library = next(r for r in ranked if r.result.facility == "도서관")
+    assert library.efficiency == 0.0
+
+
+def test_api_simulate_rank_missing_budget_and_count():
+    res = client.post(
+        "/api/simulate/rank",
+        json={"scenarios": [{"region": "만안구", "facility": "도서관"}]},
+    )
+    assert res.status_code == 200
+    assert "error" in res.json()

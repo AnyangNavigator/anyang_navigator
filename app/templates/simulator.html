@@ -40,6 +40,121 @@
   </form>
 </div>
 
+<div class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-1">여러 시나리오 비교 — 예산 대비 효과 순위화</h2>
+  <p class="text-xs text-slate-500 mb-3">한정된 예산을 어디에 먼저 투자해야 하는지, 시나리오별 <strong>1억원당 예상 격차 감소폭(%p)</strong>으로 순위를 매깁니다.</p>
+  <div id="rank-rows" class="space-y-2 text-sm"></div>
+  <div class="flex gap-2 mt-3">
+    <button type="button" id="rank-add" class="text-xs border border-slate-300 text-slate-600 px-3 py-1.5 rounded-md hover:bg-slate-50">+ 시나리오 추가</button>
+    <button type="button" id="rank-run" class="text-xs bg-slate-800 text-white px-3 py-1.5 rounded-md hover:bg-slate-900">비교 실행</button>
+  </div>
+  <p id="rank-error" class="text-xs text-red-600 mt-2 hidden"></p>
+  <div id="rank-result" class="mt-4 hidden overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="text-left text-xs text-slate-500 border-b border-slate-200">
+          <th class="py-2 pr-3">순위</th>
+          <th class="py-2 pr-3">시나리오</th>
+          <th class="py-2 pr-3">예상 개소</th>
+          <th class="py-2 pr-3">예산(억원)</th>
+          <th class="py-2 pr-3">예상 감소폭(%p)</th>
+          <th class="py-2 pr-3">효율(1억원당 %p)</th>
+        </tr>
+      </thead>
+      <tbody id="rank-tbody"></tbody>
+    </table>
+    <p class="text-xs text-amber-600 mt-3">※ 효율 수치는 하드코딩된 가정 계수 기반 추정치이며 실측 데이터가 아닙니다. 정책 우선순위 논의용입니다.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var GU_LIST = {{ gu_list | tojson }};
+  var FACILITY_LIST = {{ facility_list | tojson }};
+  var rowsEl = document.getElementById("rank-rows");
+  var errEl = document.getElementById("rank-error");
+
+  function opts(values, selected) {
+    return values.map(function (v) {
+      return '<option value="' + v + '"' + (v === selected ? " selected" : "") + ">" + v + "</option>";
+    }).join("");
+  }
+
+  function addRow(region, facility, budgetEok) {
+    var div = document.createElement("div");
+    div.className = "grid sm:grid-cols-4 gap-2 items-center rank-row";
+    div.innerHTML =
+      '<select class="r-region border border-slate-300 rounded-md px-2 py-1.5">' + opts(GU_LIST, region) + "</select>" +
+      '<select class="r-facility border border-slate-300 rounded-md px-2 py-1.5">' + opts(FACILITY_LIST, facility) + "</select>" +
+      '<input type="number" class="r-budget border border-slate-300 rounded-md px-2 py-1.5" min="0" step="1" placeholder="예산(억원)" value="' + (budgetEok || "") + '">' +
+      '<button type="button" class="r-del text-xs text-slate-400 hover:text-red-600 justify-self-start">삭제</button>';
+    div.querySelector(".r-del").addEventListener("click", function () {
+      div.remove();
+    });
+    rowsEl.appendChild(div);
+  }
+
+  document.getElementById("rank-add").addEventListener("click", function () {
+    addRow(GU_LIST[0], FACILITY_LIST[0], "");
+  });
+
+  document.getElementById("rank-run").addEventListener("click", function () {
+    errEl.classList.add("hidden");
+    var scenarios = [];
+    var rows = rowsEl.querySelectorAll(".rank-row");
+    for (var i = 0; i < rows.length; i++) {
+      var region = rows[i].querySelector(".r-region").value;
+      var facility = rows[i].querySelector(".r-facility").value;
+      var eok = parseFloat(rows[i].querySelector(".r-budget").value);
+      if (!eok || eok <= 0) {
+        errEl.textContent = (i + 1) + "번째 시나리오의 예산(억원)을 입력하세요.";
+        errEl.classList.remove("hidden");
+        return;
+      }
+      scenarios.push({ region: region, facility: facility, budget: Math.round(eok * 100000000) });
+    }
+    if (scenarios.length === 0) {
+      errEl.textContent = "비교할 시나리오를 1개 이상 추가하세요.";
+      errEl.classList.remove("hidden");
+      return;
+    }
+    fetch("/api/simulate/rank", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scenarios: scenarios }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) {
+          errEl.textContent = data.error;
+          errEl.classList.remove("hidden");
+          return;
+        }
+        var tbody = document.getElementById("rank-tbody");
+        tbody.innerHTML = data.ranked.map(function (row) {
+          return '<tr class="border-b border-slate-100">' +
+            '<td class="py-2 pr-3 font-bold">' + row.rank + "</td>" +
+            '<td class="py-2 pr-3">' + row.name + "</td>" +
+            '<td class="py-2 pr-3">' + row.num_facilities + "개소</td>" +
+            '<td class="py-2 pr-3">' + (row.budget / 100000000).toLocaleString() + "</td>" +
+            '<td class="py-2 pr-3 text-blue-600 font-semibold">-' + row.estimated_reduction + "</td>" +
+            '<td class="py-2 pr-3 font-semibold">' + row.efficiency + "</td>" +
+            "</tr>";
+        }).join("");
+        document.getElementById("rank-result").classList.remove("hidden");
+      })
+      .catch(function () {
+        errEl.textContent = "요청 처리 중 오류가 발생했습니다.";
+        errEl.classList.remove("hidden");
+      });
+  });
+
+  // 기본 2개 행: 발표용 대표 비교(주차 vs 보건의료)
+  addRow("만안구", "공영주차시설", 30);
+  addRow("만안구", "보건의료시설", 60);
+})();
+</script>
+
 {% if result %}
 <div class="bg-white rounded-xl border border-slate-200 p-5">
   <h2 class="text-sm font-semibold text-slate-500 mb-4">시뮬레이션 결과 — {{ result.region }} · {{ result.facility }} {{ result.num_facilities }}개소</h2>
