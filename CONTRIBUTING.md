@@ -101,11 +101,11 @@
 
 | 영역 | 담당자 | 브랜치 접두어 | GitHub |
 |------|--------|---------------|--------|
-| PM & 백엔드 코어 (대시보드/데이터/리포트/챗봇) | k2hop1213 | `feat/core-*` | [@k2hop1213](https://github.com/k2hop1213) |
-| 시뮬레이터 (예산 대비 효과 다중 시나리오 순위화) | JK-hustler | `feat/simulator-*` | [@JK-hustler](https://github.com/JK-hustler) |
-| 지도 (행정동 경계 GeoJSON choropleth 고도화) | sangt633-art | `feat/map-*` | [@sangt633-art](https://github.com/sangt633-art) |
+| PM & 백엔드 코어 (대시보드/데이터/리포트/챗봇) | 김규현 | `feat/core-*` | [@k2hop1213](https://github.com/k2hop1213) |
+| 시뮬레이터 (예산 대비 효과 다중 시나리오 순위화) | 정준기 | `feat/simulator-*` | [@JK-hustler](https://github.com/JK-hustler) |
+| 지도 (행정동 경계 GeoJSON choropleth 고도화) | 이상현 | `feat/map-*` | [@sangt633-art](https://github.com/sangt633-art) |
 
-> k2hop1213이 `main` 병합의 최종 관리자를 겸합니다.
+> 김규현(@k2hop1213)이 `main` 병합의 최종 관리자를 겸합니다.
 
 ---
 
