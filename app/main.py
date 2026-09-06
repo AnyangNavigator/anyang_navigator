@@ -40,6 +40,20 @@ def healthz():
     return {"status": "ok", "dong_count": dong_count}
 
 
+@app.get("/about")
+def about(request: Request):
+    """데이터 출처·방법론·한계를 한 페이지에 명시 (PROJECT_SPEC 4절 과신 방지)."""
+    return templates.TemplateResponse(
+        request,
+        "about.html",
+        {
+            "active": "about",
+            "improvement_coef": simulator.FACILITY_IMPROVEMENT_COEF,
+            "unit_cost": simulator.FACILITY_UNIT_COST,
+        },
+    )
+
+
 @app.get("/dashboard")
 def dashboard(request: Request, dong: str | None = None):
     dong_by_gu = _dong_by_gu()
