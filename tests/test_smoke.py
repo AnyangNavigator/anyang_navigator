@@ -74,6 +74,15 @@ def test_healthz():
     assert body["dong_count"] == 31
 
 
+def test_about_page_lists_assumption_coefficients():
+    res = client.get("/about")
+    assert res.status_code == 200
+    # 시뮬레이터 가정 계수가 실제로 렌더돼야 한다 (코드 상수와 동기화).
+    assert "데이터 출처와 방법론" in res.text
+    assert "공영주차시설" in res.text
+    assert "1,500,000,000원" in res.text
+
+
 def test_api_dong():
     res = client.get("/api/dong/안양1동")
     assert res.status_code == 200

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}데이터·방법론 — 안양 균형발전 내비게이터{% endblock %}
+{% block content %}
+
+<div class="mb-6">
+  <h1 class="text-xl font-bold text-slate-900 mb-1">데이터 출처와 방법론</h1>
+  <p class="text-sm text-slate-500">이 서비스가 어떤 데이터를 쓰고, 어떤 가정 위에서 계산하며, 무엇을 말할 수 없는지 정리합니다. 발표·심사 시 이 페이지를 근거 자료로 참고하세요.</p>
+</div>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-3">1. 데이터 출처</h2>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="text-left text-xs text-slate-500 border-b border-slate-200">
+          <th class="py-2 pr-3">데이터</th>
+          <th class="py-2 pr-3">집계 단위</th>
+          <th class="py-2 pr-3">출처 · 기준</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="py-2 pr-3">주택·기반시설·주차장 만족도</td><td class="py-2 pr-3">구 (만안/동안)</td><td class="py-2 pr-3">2025 안양시 사회조사 (문항 11)</td></tr>
+        <tr><td class="py-2 pr-3">향후 필요 공공시설 (복수응답)</td><td class="py-2 pr-3">구 + 안양시 전체 시계열(2021·2023·2025)</td><td class="py-2 pr-3">2025 안양시 사회조사 (문항 12)</td></tr>
+        <tr><td class="py-2 pr-3">지역 불만족 이유</td><td class="py-2 pr-3">구 (만안/동안)</td><td class="py-2 pr-3">2025 안양시 사회조사 (문항 16-3)</td></tr>
+        <tr><td class="py-2 pr-3">인구·세대수</td><td class="py-2 pr-3">행정동 31개</td><td class="py-2 pr-3">주민등록인구통계 (2025.12.31 기준)</td></tr>
+        <tr><td class="py-2 pr-3">연령대별 인구 (5세 단위)</td><td class="py-2 pr-3">행정동 31개</td><td class="py-2 pr-3">주민등록인구통계 (2025.12.31 기준)</td></tr>
+        <tr><td class="py-2 pr-3">행정동 경계 폴리곤</td><td class="py-2 pr-3">행정동 31개</td><td class="py-2 pr-3">vuski/admdongkor 공개데이터 (ver20260401)</td></tr>
+        <tr><td class="py-2 pr-3">시설 현황 — 공영주차장·병원·약국·어린이집·도서관·도시공원</td><td class="py-2 pr-3">시설 개별 (좌표/주소)</td><td class="py-2 pr-3">공공데이터포털 표준데이터 · 경기데이터드림 (2025~2026)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-xs text-slate-400 mt-3">숫자를 인용할 때는 항상 <code>data/</code> 폴더의 CSV를 기준으로 삼습니다. <code>reference/</code>의 제출서류 초안 docx에는 문항 16-3 수치 오류가 있어 맥락 참고용으로만 씁니다.</p>
+</section>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-3">2. 집계 단위가 두 층위로 다릅니다</h2>
+  <ul class="text-sm text-slate-600 space-y-2 list-disc pl-5">
+    <li><strong>사회조사(만족도·필요도·불만족 이유)</strong>는 <strong>만안구/동안구 2개 구 단위</strong>까지만 존재합니다. 안양1동·평촌동 같은 개별 행정동의 만족도 데이터는 <strong>없습니다</strong>.</li>
+    <li><strong>인구·시설 현황</strong>은 <strong>행정동 31개 단위</strong>로 존재합니다.</li>
+    <li>그래서 대시보드에서 동을 선택하면 → 그 동이 속한 <em>구의 사회조사 평균</em>(구 단위)과 <em>그 동의 인구 통계</em>(동 단위)를 레이블을 구분해 함께 보여줍니다. 이 둘을 섞어 "동별 만족도"처럼 제시하지 않습니다.</li>
+  </ul>
+</section>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-3">3. 격차 계산</h2>
+  <p class="text-sm text-slate-600 mb-2">시설 유형별 <strong>격차 = 만안구 필요도 응답률 − 동안구 필요도 응답률</strong> (%p). 양수면 만안구가 더 목마른 것, 음수면 동안구가 더 목마른 것입니다.</p>
+  <p class="text-xs text-slate-400">예: 공영주차시설 만안구 41.7% − 동안구 26.5% = <strong>+15.2%p</strong>. 이 수치는 "지금의 불편함"이 아니라 "앞으로 필요하다는 응답"의 차이입니다 (체감 불만족은 두 구가 비슷).</p>
+</section>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-1">4. What-if 시뮬레이터의 가정 계수</h2>
+  <p class="text-xs text-amber-600 mb-3">⚠️ 아래 값은 모두 <strong>하드코딩된 가정값</strong>입니다. 실제 시설 확충 후 필요도 응답률 변화를 추적한 실측 데이터가 아니며, 정책 우선순위를 <em>논의</em>하기 위한 의사결정 보조 수치입니다.</p>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="text-left text-xs text-slate-500 border-b border-slate-200">
+          <th class="py-2 pr-3">시설 유형</th>
+          <th class="py-2 pr-3">1개소당 필요도 감소 추정 (%p)</th>
+          <th class="py-2 pr-3">1개소당 개략 사업비</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for facility, coef in improvement_coef.items() %}
+        <tr>
+          <td class="py-2 pr-3">{{ facility }}</td>
+          <td class="py-2 pr-3">−{{ coef }}</td>
+          <td class="py-2 pr-3">{{ "{:,}".format(unit_cost[facility]) }}원</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-xs text-slate-400 mt-3">시뮬레이터는 <code>감소폭 = 계수 × 개소수</code>로 계산하되, 격차가 뒤집히지 않도록 감소폭은 해당 구의 현재 응답률을 넘지 못하게 제한합니다. 예산을 입력하면 위 사업비로 개소수를 환산합니다.</p>
+</section>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-3">5. 이 서비스가 말할 수 없는 것</h2>
+  <ul class="text-sm text-slate-600 space-y-2 list-disc pl-5">
+    <li><strong>행정동별 만족도·필요도</strong> — 사회조사가 구 단위라 존재하지 않습니다.</li>
+    <li><strong>자유응답(주관식) 텍스트 분석</strong> — 문항 16-3은 객관식 선택지 응답 비율이며 원문 텍스트가 없어 감성분석·토픽모델링 대상이 아닙니다.</li>
+    <li><strong>구별 필요도의 과거 시계열</strong> — 2021·2023년 데이터는 "안양시 전체" 기준만 있고, 만안/동안으로 나눈 값은 2025년 한 시점뿐입니다. 대시보드의 추세 차트는 안양시 전체 기준입니다.</li>
+    <li><strong>시설 확충의 실제 효과</strong> — 시뮬레이터 결과는 가정 계수 기반 추정이며 정밀 예측이 아닙니다.</li>
+    <li><strong>병·의원 전체 현황</strong> — 현재 병원 데이터는 병원급 이상만 포함하고 개인 의원은 빠져 있습니다.</li>
+  </ul>
+</section>
+
+{% endblock %}
