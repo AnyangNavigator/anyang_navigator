@@ -51,7 +51,10 @@ def _call_openai(prompt: str) -> str | None:
         with urllib.request.urlopen(req, timeout=15) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
             return payload["choices"][0]["message"]["content"].strip()
-    except (urllib.error.URLError, KeyError, IndexError, TimeoutError):
+    except (urllib.error.URLError, TimeoutError, ValueError, UnicodeDecodeError, KeyError, IndexError):
+        # ValueError covers json.JSONDecodeError (malformed/non-JSON response body) —
+        # without it, a bad OpenAI response leaks past this function instead of
+        # falling back to the rule-based report.
         return None
 
 

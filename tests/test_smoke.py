@@ -3,10 +3,12 @@
 새 기능이 기존 라우트를 완전히 깨뜨리는 것만 잡는 게 목적이라 값 검증은
 최소화했다. 세부 로직 테스트는 app/simulator.py, app/data.py에 필요시 추가.
 """
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app import simulator
+from app import report, simulator
 
 client = TestClient(app)
 
@@ -45,6 +47,23 @@ def test_simulator_custom_scenario():
         data={"region": "동안구", "facility": "도서관", "num_facilities": "2"},
     )
     assert res.status_code == 200
+
+
+def test_simulator_invalid_facility_shows_error_not_crash():
+    # 폼을 우회해 잘못된 facility를 보내도 500이 아니라 에러 메시지가 담긴
+    # 200 페이지여야 한다 (#15).
+    res = client.post(
+        "/simulator",
+        data={"region": "만안구", "facility": "존재하지않는시설", "num_facilities": "1"},
+    )
+    assert res.status_code == 200
+    assert "시뮬레이션을 실행할 수 없습니다" in res.text
+
+
+def test_simulator_missing_num_facilities_and_budget_shows_error():
+    res = client.post("/simulator", data={"region": "만안구", "facility": "도서관"})
+    assert res.status_code == 200
+    assert "시뮬레이션을 실행할 수 없습니다" in res.text
 
 
 def test_api_dong():
@@ -131,3 +150,24 @@ def test_api_simulate_rank_missing_budget_and_count():
     )
     assert res.status_code == 200
     assert "error" in res.json()
+
+
+def test_call_openai_falls_back_on_malformed_json_response(monkeypatch):
+    # OpenAI가 파싱 불가능한 바디를 돌려줘도 예외가 새어나가지 않고
+    # None(규칙 기반 폴백 신호)을 반환해야 한다 (#15).
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    class FakeResponse:
+        def read(self):
+            return b"not valid json"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            return False
+
+    with patch("app.report.urllib.request.urlopen", return_value=FakeResponse()):
+        result = report._call_openai("아무 프롬프트")
+
+    assert result is None
