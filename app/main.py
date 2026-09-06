@@ -52,6 +52,7 @@ def dashboard(request: Request, dong: str | None = None):
     gu_stats = data.get_gu_survey_snapshot(d.gu)
     density = data.get_facility_density(selected_dong)
     needed_gap = data.gu_needed_facility_gap()
+    facility_trends = data.all_facility_trends()
 
     return templates.TemplateResponse(
         request,
@@ -63,6 +64,7 @@ def dashboard(request: Request, dong: str | None = None):
             "gu_stats": gu_stats,
             "density": density,
             "needed_gap": needed_gap,
+            "facility_trends": facility_trends,
             "naver_map_client_id": NAVER_MAP_CLIENT_ID,
         },
     )

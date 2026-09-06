@@ -149,3 +149,12 @@ def facility_trend(facility: str) -> dict[str, float]:
         "2023": float(df.loc["안양시 전체(2023)", facility]),
         "2025": float(df.loc["안양시 전체", facility]),
     }
+
+
+def all_facility_trends() -> dict[str, dict[str, float]]:
+    """모든 시설 유형의 안양시 전체 2021->2023->2025 시계열 필요도 추세.
+
+    주의: 이 추세는 '안양시 전체' 기준이며 만안구/동안구로 쪼갠 과거 데이터는
+    없다 — 구별 격차(gu_needed_facility_gap)는 2025년 한 시점만 존재한다.
+    """
+    return {facility: facility_trend(facility) for facility in load_needed_facilities().columns}
