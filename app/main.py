@@ -96,6 +96,7 @@ def simulator_submit(
                 "description": f"{region}에 {facility} {num_facilities}개소를 신규 공급하는 시나리오.",
             }
             result = simulator.simulate(region=region, facility=facility, num_facilities=num_facilities)
+        report_text = report.generate_scenario_report(scenario, result)
     except ValueError as e:
         return templates.TemplateResponse(
             request,
@@ -111,8 +112,6 @@ def simulator_submit(
                 "error": str(e),
             },
         )
-
-    report_text = report.generate_scenario_report(scenario, result)
 
     return templates.TemplateResponse(
         request,

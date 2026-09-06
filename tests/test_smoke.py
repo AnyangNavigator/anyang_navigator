@@ -171,3 +171,24 @@ def test_call_openai_falls_back_on_malformed_json_response(monkeypatch):
         result = report._call_openai("아무 프롬프트")
 
     assert result is None
+
+
+def test_call_openai_falls_back_when_content_is_null(monkeypatch):
+    # 콘텐츠 필터·tool_calls 등으로 OpenAI가 정상 200 + 정상 JSON이지만
+    # content: null을 돌려주는 경우도 폴백돼야 한다 (PR #18 리뷰에서 발견).
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    class FakeResponse:
+        def read(self):
+            return b'{"choices":[{"message":{"content":null}}]}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            return False
+
+    with patch("app.report.urllib.request.urlopen", return_value=FakeResponse()):
+        result = report._call_openai("아무 프롬프트")
+
+    assert result is None
