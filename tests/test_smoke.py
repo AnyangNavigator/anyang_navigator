@@ -105,6 +105,50 @@ def test_api_simulate_negative_num_facilities_returns_error():
     assert "error" in res.json()
 
 
+def test_simulate_gap_never_reverses_sign_on_over_supply():
+    # 더 목마른 쪽(만안구, 공영주차 41.7 vs 26.5)에 과잉 공급해도 격차 부호가
+    # 뒤집히면 안 된다 → 현재 격차(15.2%p)까지만 인정 (#9 A2).
+    res = simulator.simulate(region="만안구", facility="공영주차시설", num_facilities=100)
+    assert res.current_gap > 0
+    assert res.projected_gap >= 0
+    assert res.projected_gap <= res.current_gap
+    assert res.estimated_reduction <= res.current_gap
+
+
+def test_simulate_flags_adverse_scenario_when_gap_widens():
+    # 필요도가 더 낮은 쪽(동안구)에 공영주차를 투입하면 격차가 벌어진다 →
+    # 경고 문구가 채워져야 한다 (#9 A3).
+    res = simulator.simulate(region="동안구", facility="공영주차시설", num_facilities=3)
+    assert res.projected_gap > res.current_gap
+    assert res.adverse_warning
+    assert "확대" in res.adverse_warning
+
+
+def test_simulate_normal_scenario_has_no_adverse_warning():
+    res = simulator.simulate(region="만안구", facility="공영주차시설", num_facilities=3)
+    assert res.adverse_warning == ""
+
+
+def test_simulate_budget_below_unit_cost_raises_explicit_error():
+    # 예산이 1개소 사업비보다 작으면 조용히 0개소·0효과가 아니라
+    # "예산 부족"임을 알리는 ValueError (#9 A4).
+    try:
+        simulator.simulate(region="만안구", facility="공영주차시설", budget=1000)
+    except ValueError as e:
+        assert "예산" in str(e)
+    else:
+        raise AssertionError("예산 부족 시 ValueError를 내야 한다")
+
+
+def test_api_simulate_budget_below_unit_cost_returns_error():
+    res = client.post(
+        "/api/simulate",
+        json={"region": "만안구", "facility": "공영주차시설", "budget": 1000},
+    )
+    assert res.status_code == 200
+    assert "error" in res.json()
+
+
 def test_healthz():
     res = client.get("/healthz")
     assert res.status_code == 200

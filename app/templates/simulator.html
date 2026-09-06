@@ -178,6 +178,9 @@
       <div class="text-xl font-bold">{{ result.projected_gap }}%p</div>
     </div>
   </div>
+  {% if result.adverse_warning %}
+  <p class="text-sm text-red-600 font-semibold mb-3">⚠ {{ result.adverse_warning }}</p>
+  {% endif %}
   <p class="text-xs text-amber-600 mb-4">※ {{ result.assumption_note }}</p>
   <pre class="text-sm whitespace-pre-wrap bg-slate-50 rounded-md p-4">{{ report }}</pre>
 </div>

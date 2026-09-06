@@ -69,6 +69,9 @@ class SimulationResult:
     dongan_current: float
     manan_projected: float
     assumption_note: str
+    # 투입 지역이 해당 시설 필요도가 더 낮은 쪽이라 격차가 오히려 벌어지는
+    # 시나리오일 때 채워지는 경고 문구(#9 A3). 정상 시나리오면 빈 문자열.
+    adverse_warning: str = ""
     trend: dict[str, float] = field(default_factory=dict)
 
 
@@ -102,6 +105,17 @@ def simulate(region: str, facility: str, num_facilities: int | None = None, budg
         if budget is None:
             raise ValueError("num_facilities 또는 budget 중 하나는 필요합니다.")
         num_facilities = estimate_facility_count(facility, budget)
+        # 예산이 1개소 사업비보다 작으면 estimate_facility_count()가 0을 돌려주고,
+        # 그대로 두면 "모델이 효과 0이라고 봤다"는 오해를 준다(#9 A4). 예산
+        # 부족임을 분명히 알린다. (num_facilities 직접 입력 경로의 0·음수는
+        # 아래 A1 가드가 처리.)
+        if num_facilities < 1:
+            unit_cost = FACILITY_UNIT_COST.get(facility, FACILITY_UNIT_COST["기타"])
+            raise ValueError(
+                f"입력 예산({budget:,.0f}원)이 {facility} 1개소 사업비"
+                f"({unit_cost:,.0f}원)보다 작아 배치할 시설이 없습니다. "
+                f"예산을 늘리거나 개소 수를 직접 입력하세요."
+            )
 
     # 폼/API를 우회한 직접 POST로 0·음수가 들어오면 격차가 오히려 커지는
     # 무의미한 결과가 나온다(#9 A1). 1 이상의 정수만 허용하고, 나머지는
@@ -116,9 +130,16 @@ def simulate(region: str, facility: str, num_facilities: int | None = None, budg
 
     coef = FACILITY_IMPROVEMENT_COEF[facility]
     raw_reduction = coef * num_facilities
-    # 격차가 뒤집히지 않도록, 감소폭은 현재 해당 구의 응답률을 초과할 수 없다.
+
+    # 감소폭 상한(#9 A2). 두 경우를 구분한다:
+    #  - 투입 지역이 현재 '더 목마른'(응답률이 높은) 쪽이면, 감소폭이 현재
+    #    격차를 넘는 순간 부호가 뒤집혀(과잉 공급) 무의미해진다 → 현재 격차까지만.
+    #  - 투입 지역이 이미 낮은 쪽이면 격차 역전은 애초에 불가능하고, 응답률이
+    #    0 미만으로 내려갈 수 없다는 물리적 하한만 적용한다(격차 확대는 A3 경고).
+    higher_region = "만안구" if manan_current >= dongan_current else "동안구"
     target_current = manan_current if region == "만안구" else dongan_current
-    estimated_reduction = min(raw_reduction, target_current)
+    cap = abs(current_gap) if region == higher_region else target_current
+    estimated_reduction = min(raw_reduction, cap)
 
     if region == "만안구":
         manan_projected = round(manan_current - estimated_reduction, 1)
@@ -128,6 +149,16 @@ def simulate(region: str, facility: str, num_facilities: int | None = None, budg
         dongan_projected = round(dongan_current - estimated_reduction, 1)
 
     projected_gap = round(manan_projected - dongan_projected, 1)
+
+    # 투입 지역이 해당 시설 필요도가 더 낮은 쪽이면 격차가 오히려 벌어진다(#9 A3).
+    # 시나리오 자체를 막지는 않되, 결과 화면·리포트가 이를 분명히 알리도록 경고를 채운다.
+    adverse_warning = ""
+    if region != higher_region and raw_reduction > 0 and abs(projected_gap) > abs(current_gap):
+        adverse_warning = (
+            f"{facility}은(는) {higher_region} 필요도가 더 높은데 {region}에 투입하는 "
+            f"시나리오라, 두 구의 격차가 현재 {abs(current_gap)}%p에서 "
+            f"{abs(projected_gap)}%p로 오히려 확대됩니다."
+        )
 
     return SimulationResult(
         region=region,
@@ -139,6 +170,7 @@ def simulate(region: str, facility: str, num_facilities: int | None = None, budg
         manan_current=manan_current,
         dongan_current=dongan_current,
         manan_projected=manan_projected,
+        adverse_warning=adverse_warning,
         trend=data.facility_trend(facility),
         assumption_note=(
             f"가정: {facility} 신규 1개소당 '향후 필요' 응답률 -{coef}%p 감소. "
