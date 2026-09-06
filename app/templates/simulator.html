@@ -155,6 +155,12 @@
 })();
 </script>
 
+{% if error %}
+<div class="bg-red-50 border border-red-200 rounded-xl p-5 mb-6 text-sm text-red-700">
+  시뮬레이션을 실행할 수 없습니다: {{ error }}
+</div>
+{% endif %}
+
 {% if result %}
 <div class="bg-white rounded-xl border border-slate-200 p-5">
   <h2 class="text-sm font-semibold text-slate-500 mb-4">시뮬레이션 결과 — {{ result.region }} · {{ result.facility }} {{ result.num_facilities }}개소</h2>

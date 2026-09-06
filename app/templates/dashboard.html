@@ -80,18 +80,24 @@
 
 <script>
 const gapData = {{ needed_gap | tojson }};
-new Chart(document.getElementById('gapChart'), {
-  type: 'bar',
-  data: {
-    labels: Object.keys(gapData),
-    datasets: [{
-      label: '만안구 - 동안구 격차 (%p)',
-      data: Object.values(gapData),
-      backgroundColor: Object.values(gapData).map(v => v >= 0 ? '#2563eb' : '#f59e0b'),
-    }]
-  },
-  options: { responsive: true, plugins: { legend: { display: false } } }
-});
+try {
+  if (typeof Chart === 'undefined') throw new Error('Chart.js not loaded');
+  new Chart(document.getElementById('gapChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(gapData),
+      datasets: [{
+        label: '만안구 - 동안구 격차 (%p)',
+        data: Object.values(gapData),
+        backgroundColor: Object.values(gapData).map(v => v >= 0 ? '#2563eb' : '#f59e0b'),
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+} catch (e) {
+  // Chart.js CDN이 막혔거나 로드 실패해도 리포트/챗봇/지도는 계속 동작해야 한다.
+  console.error('격차 차트를 그리지 못했습니다:', e);
+}
 
 const selectedDong = {{ selected_dong | tojson }};
 

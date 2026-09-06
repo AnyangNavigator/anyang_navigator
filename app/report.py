@@ -50,8 +50,14 @@ def _call_openai(prompt: str) -> str | None:
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
-            return payload["choices"][0]["message"]["content"].strip()
-    except (urllib.error.URLError, KeyError, IndexError, TimeoutError):
+            content = payload["choices"][0]["message"]["content"]
+            # 콘텐츠 필터·tool_calls 등으로 정상 200 응답에서도 content가
+            # null로 올 수 있다 — 그 경우도 폴백으로 떨어져야 한다.
+            return content.strip() if content else None
+    except Exception:
+        # 이 함수의 계약은 "성공하면 문자열, 그 외엔 항상 None" — 네트워크
+        # 오류든 응답 형식이 예상과 다르든, 절대 새어나가지 않고 규칙 기반
+        # 폴백으로 떨어져야 하므로 의도적으로 넓게 잡는다.
         return None
 
 

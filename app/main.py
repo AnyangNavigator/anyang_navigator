@@ -81,6 +81,7 @@ def simulator_page(request: Request):
             "form": {},
             "result": None,
             "report": None,
+            "error": None,
         },
     )
 
@@ -93,16 +94,31 @@ def simulator_submit(
     facility: str | None = Form(None),
     num_facilities: int | None = Form(None),
 ):
-    if scenario_id:
-        scenario, result = simulator.run_scenario(scenario_id)
-    else:
-        scenario = {
-            "name": f"사용자 정의: {region} · {facility}",
-            "description": f"{region}에 {facility} {num_facilities}개소를 신규 공급하는 시나리오.",
-        }
-        result = simulator.simulate(region=region, facility=facility, num_facilities=num_facilities)
-
-    report_text = report.generate_scenario_report(scenario, result)
+    try:
+        if scenario_id:
+            scenario, result = simulator.run_scenario(scenario_id)
+        else:
+            scenario = {
+                "name": f"사용자 정의: {region} · {facility}",
+                "description": f"{region}에 {facility} {num_facilities}개소를 신규 공급하는 시나리오.",
+            }
+            result = simulator.simulate(region=region, facility=facility, num_facilities=num_facilities)
+        report_text = report.generate_scenario_report(scenario, result)
+    except ValueError as e:
+        return templates.TemplateResponse(
+            request,
+            "simulator.html",
+            {
+                "active": "simulator",
+                "scenarios": simulator.SCENARIOS,
+                "gu_list": data.GU_LIST,
+                "facility_list": list(simulator.FACILITY_IMPROVEMENT_COEF.keys()),
+                "form": {"region": region, "facility": facility, "num_facilities": num_facilities},
+                "result": None,
+                "report": None,
+                "error": str(e),
+            },
+        )
 
     return templates.TemplateResponse(
         request,
@@ -115,6 +131,7 @@ def simulator_submit(
             "form": {"region": result.region, "facility": result.facility, "num_facilities": result.num_facilities},
             "result": result,
             "report": report_text,
+            "error": None,
         },
     )
 
