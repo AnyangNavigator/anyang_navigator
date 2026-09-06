@@ -6,7 +6,8 @@
 #   3. 배포 후 공개 URL을 NAVER NCP 콘솔의 Web 서비스 URL 화이트리스트에 추가
 #      (안 하면 지도 타일이 안 뜬다)
 #
-# Python 버전은 runtime.txt(python-3.12.8)로 고정 — CI(actions/setup-python 3.12)와 일치.
+# Python 버전은 아래 PYTHON_VERSION + 저장소 루트의 .python-version 으로 3.12.8 고정
+# (CI actions/setup-python 3.12와 일치). Render는 runtime.txt(Heroku 관례)를 읽지 않는다.
 services:
   - type: web
     name: anyang-navigator
@@ -19,6 +20,9 @@ services:
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
+      # Render의 Python 버전 지정 방식 1순위. .python-version 파일과 동일하게 맞춰둔다.
+      - key: PYTHON_VERSION
+        value: 3.12.8
       # 리포트를 실제 LLM으로 생성하려면 설정(없으면 규칙 기반 폴백 — 앱은 정상 작동).
       - key: OPENAI_API_KEY
         sync: false

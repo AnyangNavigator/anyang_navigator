@@ -75,7 +75,7 @@ python -m uvicorn app.main:app --reload
 
 ## 배포 (Render)
 
-배포 설정은 `render.yaml`(Blueprint) + `runtime.txt`(Python 3.12 고정)로 저장소에 포함돼 있습니다.
+배포 설정은 `render.yaml`(Blueprint) + `.python-version`/`PYTHON_VERSION`(Python 3.12.8 고정)으로 저장소에 포함돼 있습니다.
 
 1. [render.com](https://render.com) → **New → Blueprint** → 이 저장소 연결 → `render.yaml`이 자동 인식됨
 2. 서비스 환경변수 설정 (Render 대시보드):
