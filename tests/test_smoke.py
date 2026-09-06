@@ -3,6 +3,7 @@
 새 기능이 기존 라우트를 완전히 깨뜨리는 것만 잡는 게 목적이라 값 검증은
 최소화했다. 세부 로직 테스트는 app/simulator.py, app/data.py에 필요시 추가.
 """
+import json
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -179,6 +180,38 @@ def test_call_openai_falls_back_on_malformed_json_response(monkeypatch):
         result = report._call_openai("아무 프롬프트")
 
     assert result is None
+
+
+def test_call_openai_respects_base_url_and_model(monkeypatch):
+    # OPENAI_BASE_URL / OPENAI_MODEL 환경변수로 OpenAI 호환 엔드포인트(Groq 등)를
+    # 쓸 수 있어야 한다.
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.groq.com/openai/v1/")
+    monkeypatch.setenv("OPENAI_MODEL", "llama-3.3-70b-versatile")
+    captured = {}
+
+    class FakeResponse:
+        def read(self):
+            return b'{"choices":[{"message":{"content":"ok"}}]}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            return False
+
+    def fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    with patch("app.report.urllib.request.urlopen", fake_urlopen):
+        result = report._call_openai("아무 프롬프트")
+
+    assert result == "ok"
+    # 후행 슬래시가 있어도 정확히 한 번만 붙어야 한다.
+    assert captured["url"] == "https://api.groq.com/openai/v1/chat/completions"
+    assert captured["body"]["model"] == "llama-3.3-70b-versatile"
 
 
 def test_call_openai_falls_back_when_content_is_null(monkeypatch):
