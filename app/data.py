@@ -6,6 +6,7 @@ population_by_dong.csv만 행정동(31개) 단위다. 이 둘을 절대 같은 �
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from functools import lru_cache
@@ -112,6 +113,32 @@ def gu_needed_facility_gap() -> dict[str, float]:
     dongan = df.loc["동안구"]
     gap = (manan - dongan).round(1)
     return gap.to_dict()
+
+
+@lru_cache
+def load_dong_boundaries() -> dict:
+    """안양시 31개 행정동 경계 GeoJSON 원본(dong/gu/adm_nm/adm_cd 속성만 포함, 인구 없음).
+
+    출처: https://github.com/vuski/admdongkor (ver20260401) 에서 안양시분만 추출한 것.
+    `scripts/extract_anyang_geojson.py` 참고.
+    """
+    with (DATA_DIR / "anyang_dong_boundaries.geojson").open(encoding="utf-8") as f:
+        return json.load(f)
+
+
+def dong_boundaries_with_population() -> dict:
+    """경계 GeoJSON에 동별 총인구를 붙여서 반환한다 (choropleth 색상 계산용).
+
+    population_by_dong.csv에 없는 동이 있으면(데이터 불일치) 해당 동의
+    total_population은 null로 내려간다 — 프런트에서 회색으로 처리해야 한다.
+    """
+    boundaries = load_dong_boundaries()
+    pop_by_dong = {d.dong: d.total_population for d in list_dong()}
+    features = [
+        {**feat, "properties": {**feat["properties"], "total_population": pop_by_dong.get(feat["properties"].get("dong"))}}
+        for feat in boundaries["features"]
+    ]
+    return {"type": "FeatureCollection", "features": features}
 
 
 def facility_trend(facility: str) -> dict[str, float]:

@@ -45,9 +45,6 @@ def dashboard(request: Request, dong: str | None = None):
     gu_stats = data.get_gu_survey_snapshot(d.gu)
     density = data.get_facility_density(selected_dong)
     needed_gap = data.gu_needed_facility_gap()
-    dong_summary = [
-        {"gu": dd.gu, "dong": dd.dong, "population": dd.total_population} for dd in data.list_dong()
-    ]
 
     return templates.TemplateResponse(
         request,
@@ -59,7 +56,6 @@ def dashboard(request: Request, dong: str | None = None):
             "gu_stats": gu_stats,
             "density": density,
             "needed_gap": needed_gap,
-            "dong_summary": dong_summary,
             "naver_map_client_id": NAVER_MAP_CLIENT_ID,
         },
     )
@@ -114,6 +110,12 @@ def simulator_submit(
             "report": report_text,
         },
     )
+
+
+@app.get("/api/dong-boundaries")
+def api_dong_boundaries():
+    """안양시 31개 행정동 경계 GeoJSON(+동별 인구) — 대시보드 choropleth 지도용."""
+    return data.dong_boundaries_with_population()
 
 
 @app.get("/api/dong/{dong_name}")
