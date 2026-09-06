@@ -66,6 +66,14 @@ def test_simulator_missing_num_facilities_and_budget_shows_error():
     assert "시뮬레이션을 실행할 수 없습니다" in res.text
 
 
+def test_healthz():
+    res = client.get("/healthz")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "ok"
+    assert body["dong_count"] == 31
+
+
 def test_api_dong():
     res = client.get("/api/dong/안양1동")
     assert res.status_code == 200

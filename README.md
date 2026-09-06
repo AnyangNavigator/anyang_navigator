@@ -73,15 +73,29 @@ python -m uvicorn app.main:app --reload
 
 행정동 경계 GeoJSON(`data/anyang_dong_boundaries.geojson`)은 [vuski/admdongkor](https://github.com/vuski/admdongkor) 공개 데이터에서 `scripts/extract_anyang_geojson.py`로 추출한 것입니다. 원본 소스가 갱신되어 동 이름이 바뀌면 이 스크립트를 다시 돌리면 됩니다.
 
-## 진행 상황 (2026-09-05 기준)
+## 배포 (Render)
+
+배포 설정은 `render.yaml`(Blueprint) + `.python-version`/`PYTHON_VERSION`(Python 3.12.8 고정)으로 저장소에 포함돼 있습니다.
+
+1. [render.com](https://render.com) → **New → Blueprint** → 이 저장소 연결 → `render.yaml`이 자동 인식됨
+2. 서비스 환경변수 설정 (Render 대시보드):
+   - `OPENAI_API_KEY` — 선택. 없으면 규칙 기반 리포트로 폴백(앱은 정상 작동)
+   - `NAVER_MAP_CLIENT_ID` — 선택. 배포 도메인이 기본 하드코딩 키의 화이트리스트 밖이면 설정
+3. **NCP 콘솔** → 네이버 지도 애플리케이션 → Web 서비스 URL에 **배포된 `*.onrender.com` 도메인 추가** (안 하면 지도 타일이 안 뜸)
+4. 헬스체크 경로는 `/healthz` (데이터 로드까지 확인). 배포 후 `/dashboard`, `/simulator`, `/api/dong-boundaries`, 리포트 생성, 챗봇을 육안 스모크 확인
+5. ⚠️ **공개검증 기간(수상 후보작 10일 이상 온라인 공개) 동안 서비스를 내리지 말 것.** Render 무료 플랜은 15분 유휴 시 슬립 → 첫 요청이 느릴 수 있음(기능엔 지장 없음)
+
+로컬에서 배포와 동일하게 띄우려면: `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+
+## 진행 상황 (2026-09-06 기준)
 
 - [x] 1순위: 대시보드 (구 단위 + 동 단위 이중 레이어) + 주차장/보건의료시설 지표, 격차 차트
 - [x] 2순위: What-if 시뮬레이터 (양지마을 기본 시나리오 + 사용자 정의 지역/시설/개소 입력)
 - [x] 3순위: LLM 자동 리포트 (API 키 없을 때도 규칙 기반으로 항상 작동)
 - [x] 4순위(여력): 규칙 기반 챗봇 (벡터DB 없이 키워드 매칭 + 구조화 쿼리)
 - [x] 5순위(여력) 일부: 지도 시각화 — 네이버 지도에 31개 행정동 실제 경계 폴리곤을 인구 규모 5단계 choropleth로 표시(범례 포함), 클릭 시 해당 동으로 이동
-- [ ] 5순위(여력) 나머지: 예산 대비 효과 스코어링(다중 시나리오 순위화)
+- [x] 5순위(여력) 나머지: 예산 대비 효과 스코어링 — `/simulator` "여러 시나리오 비교" 섹션에서 1억원당 예상 격차 감소폭으로 순위화
 
-다음으로 손댈 만한 것: 여러 시나리오 예산 대비 효과 순위화, 배포(Render/Railway).
+기능 개발은 5순위까지 전부 완료. 다음으로 손댈 만한 것: 배포(Render/Railway) + 공개검증용 URL 유지.
 
 마감(9/21)까지 실제 작동하는 시제품이 반드시 있어야 함 — 완벽함보다 "핵심 기능이 오류 없이 돌아가는 것"을 최우선으로.

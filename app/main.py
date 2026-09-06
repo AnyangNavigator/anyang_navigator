@@ -33,6 +33,13 @@ def root():
     return RedirectResponse(url="/dashboard")
 
 
+@app.get("/healthz")
+def healthz():
+    """배포 플랫폼(Render 등) 헬스체크용. 의존 데이터가 로드되는지까지 확인한다."""
+    dong_count = len(data.list_dong())
+    return {"status": "ok", "dong_count": dong_count}
+
+
 @app.get("/dashboard")
 def dashboard(request: Request, dong: str | None = None):
     dong_by_gu = _dong_by_gu()
