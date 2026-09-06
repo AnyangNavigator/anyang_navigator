@@ -72,6 +72,19 @@ class SimulationResult:
     trend: dict[str, float] = field(default_factory=dict)
 
 
+# 효율 지표를 "1억원당 예상 격차 감소폭(%p)"으로 환산하기 위한 단위.
+BUDGET_UNIT = 100_000_000  # 1억원
+
+
+@dataclass
+class RankedScenario:
+    rank: int
+    name: str
+    budget: float
+    efficiency: float  # 1억원당 예상 격차 감소폭(%p)
+    result: SimulationResult
+
+
 def estimate_facility_count(facility: str, budget: float) -> int:
     unit_cost = FACILITY_UNIT_COST.get(facility, FACILITY_UNIT_COST["기타"])
     if unit_cost <= 0:
@@ -126,6 +139,51 @@ def simulate(region: str, facility: str, num_facilities: int | None = None, budg
             f"이 값은 실측 추적 데이터가 아닌 정책 논의용 추정치입니다."
         ),
     )
+
+
+def rank_scenarios(scenarios: list[dict]) -> list[RankedScenario]:
+    """여러 정책 시나리오를 예산 대비 효과(격차 감소폭 / 예산)로 순위화한다.
+
+    각 시나리오 dict는 아래 키를 받는다:
+      - region (필수), facility (필수)
+      - budget (원) 또는 num_facilities 중 하나 이상
+      - name (선택): 표시용 시나리오명
+
+    budget이 주어지면 estimate_facility_count()로 개소를 환산하고, 그렇지 않으면
+    num_facilities를 그대로 쓴다. 효율은 "1억원당 예상 격차 감소폭(%p)"으로,
+    budget이 없으면 0으로 둔다(예산 대비 비교 불가). 반환 리스트는 효율 내림차순
+    정렬이며 rank는 1부터 부여된다. 계산 로직은 simulate()를 그대로 재사용한다.
+    """
+    ranked: list[RankedScenario] = []
+    for idx, sc in enumerate(scenarios):
+        region = sc.get("region")
+        facility = sc.get("facility")
+        budget = float(sc.get("budget") or 0)
+        num_facilities = sc.get("num_facilities")
+        if num_facilities is None and budget <= 0:
+            raise ValueError(
+                f"{idx + 1}번째 시나리오: budget 또는 num_facilities 중 하나는 필요합니다."
+            )
+        result = simulate(
+            region=region,
+            facility=facility,
+            num_facilities=num_facilities,
+            budget=budget if budget > 0 else None,
+        )
+        efficiency = (
+            round(result.estimated_reduction / (budget / BUDGET_UNIT), 4)
+            if budget > 0
+            else 0.0
+        )
+        name = sc.get("name") or f"{region} · {facility}"
+        ranked.append(
+            RankedScenario(rank=0, name=name, budget=budget, efficiency=efficiency, result=result)
+        )
+
+    ranked.sort(key=lambda r: r.efficiency, reverse=True)
+    for rank, r in enumerate(ranked, start=1):
+        r.rank = rank
+    return ranked
 
 
 def run_scenario(scenario_id: str = DEFAULT_SCENARIO_ID) -> tuple[dict, SimulationResult]:

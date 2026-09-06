@@ -165,3 +165,40 @@ def api_simulate(payload: SimulateRequest):
     except ValueError as e:
         return {"error": str(e)}
     return {"result": result.__dict__}
+
+
+class RankScenarioItem(BaseModel):
+    region: str
+    facility: str
+    budget: float | None = None
+    num_facilities: int | None = None
+    name: str | None = None
+
+
+class RankRequest(BaseModel):
+    scenarios: list[RankScenarioItem]
+
+
+@app.post("/api/simulate/rank")
+def api_simulate_rank(payload: RankRequest):
+    try:
+        ranked = simulator.rank_scenarios([s.model_dump() for s in payload.scenarios])
+    except ValueError as e:
+        return {"error": str(e)}
+    return {
+        "ranked": [
+            {
+                "rank": r.rank,
+                "name": r.name,
+                "region": r.result.region,
+                "facility": r.result.facility,
+                "num_facilities": r.result.num_facilities,
+                "budget": r.budget,
+                "current_gap": r.result.current_gap,
+                "estimated_reduction": r.result.estimated_reduction,
+                "projected_gap": r.result.projected_gap,
+                "efficiency": r.efficiency,
+            }
+            for r in ranked
+        ]
+    }
