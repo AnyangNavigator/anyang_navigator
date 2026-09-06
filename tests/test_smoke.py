@@ -8,7 +8,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app import report, simulator
+from app import data, report, simulator
 
 client = TestClient(app)
 
@@ -17,6 +17,14 @@ def test_dashboard_default():
     res = client.get("/dashboard")
     assert res.status_code == 200
     assert "안양1동" in res.text
+    assert "trendChart" in res.text
+
+
+def test_all_facility_trends_matches_needed_facilities_columns():
+    trends = data.all_facility_trends()
+    assert set(trends.keys()) == set(data.load_needed_facilities().columns)
+    for years in trends.values():
+        assert set(years.keys()) == {"2021", "2023", "2025"}
 
 
 def test_dashboard_with_dong_query():
