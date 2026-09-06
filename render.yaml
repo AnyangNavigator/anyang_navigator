@@ -1,0 +1,27 @@
+# Render Blueprint — 안양 균형발전 내비게이터 백엔드(+SSR 프론트) 배포 설정.
+#
+# 사용법:
+#   1. render.com 에서 New → Blueprint → 이 저장소 연결
+#   2. 아래 서비스가 자동 인식됨. 환경변수만 대시보드에서 채우면 됨.
+#   3. 배포 후 공개 URL을 NAVER NCP 콘솔의 Web 서비스 URL 화이트리스트에 추가
+#      (안 하면 지도 타일이 안 뜬다)
+#
+# Python 버전은 runtime.txt(python-3.12.8)로 고정 — CI(actions/setup-python 3.12)와 일치.
+services:
+  - type: web
+    name: anyang-navigator
+    runtime: python
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      # 리포트를 실제 LLM으로 생성하려면 설정(없으면 규칙 기반 폴백 — 앱은 정상 작동).
+      - key: OPENAI_API_KEY
+        sync: false
+      # 배포 도메인이 기본 하드코딩 키의 화이트리스트에 없으면 여기서 덮어쓴다.
+      - key: NAVER_MAP_CLIENT_ID
+        sync: false

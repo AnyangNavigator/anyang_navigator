@@ -47,6 +47,14 @@ def test_simulator_custom_scenario():
     assert res.status_code == 200
 
 
+def test_healthz():
+    res = client.get("/healthz")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "ok"
+    assert body["dong_count"] == 31
+
+
 def test_api_dong():
     res = client.get("/api/dong/안양1동")
     assert res.status_code == 200

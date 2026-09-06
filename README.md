@@ -73,6 +73,20 @@ python -m uvicorn app.main:app --reload
 
 행정동 경계 GeoJSON(`data/anyang_dong_boundaries.geojson`)은 [vuski/admdongkor](https://github.com/vuski/admdongkor) 공개 데이터에서 `scripts/extract_anyang_geojson.py`로 추출한 것입니다. 원본 소스가 갱신되어 동 이름이 바뀌면 이 스크립트를 다시 돌리면 됩니다.
 
+## 배포 (Render)
+
+배포 설정은 `render.yaml`(Blueprint) + `runtime.txt`(Python 3.12 고정)로 저장소에 포함돼 있습니다.
+
+1. [render.com](https://render.com) → **New → Blueprint** → 이 저장소 연결 → `render.yaml`이 자동 인식됨
+2. 서비스 환경변수 설정 (Render 대시보드):
+   - `OPENAI_API_KEY` — 선택. 없으면 규칙 기반 리포트로 폴백(앱은 정상 작동)
+   - `NAVER_MAP_CLIENT_ID` — 선택. 배포 도메인이 기본 하드코딩 키의 화이트리스트 밖이면 설정
+3. **NCP 콘솔** → 네이버 지도 애플리케이션 → Web 서비스 URL에 **배포된 `*.onrender.com` 도메인 추가** (안 하면 지도 타일이 안 뜸)
+4. 헬스체크 경로는 `/healthz` (데이터 로드까지 확인). 배포 후 `/dashboard`, `/simulator`, `/api/dong-boundaries`, 리포트 생성, 챗봇을 육안 스모크 확인
+5. ⚠️ **공개검증 기간(수상 후보작 10일 이상 온라인 공개) 동안 서비스를 내리지 말 것.** Render 무료 플랜은 15분 유휴 시 슬립 → 첫 요청이 느릴 수 있음(기능엔 지장 없음)
+
+로컬에서 배포와 동일하게 띄우려면: `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+
 ## 진행 상황 (2026-09-05 기준)
 
 - [x] 1순위: 대시보드 (구 단위 + 동 단위 이중 레이어) + 주차장/보건의료시설 지표, 격차 차트
