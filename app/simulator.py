@@ -103,6 +103,12 @@ def simulate(region: str, facility: str, num_facilities: int | None = None, budg
             raise ValueError("num_facilities 또는 budget 중 하나는 필요합니다.")
         num_facilities = estimate_facility_count(facility, budget)
 
+    # 폼/API를 우회한 직접 POST로 0·음수가 들어오면 격차가 오히려 커지는
+    # 무의미한 결과가 나온다(#9 A1). 1 이상의 정수만 허용하고, 나머지는
+    # 각 라우트의 `except ValueError`가 에러 메시지로 처리하게 한다.
+    if isinstance(num_facilities, bool) or not isinstance(num_facilities, int) or num_facilities < 1:
+        raise ValueError(f"num_facilities는 1 이상의 정수여야 합니다: {num_facilities!r}")
+
     needed = data.load_needed_facilities()
     manan_current = float(needed.loc["만안구", facility])
     dongan_current = float(needed.loc["동안구", facility])
