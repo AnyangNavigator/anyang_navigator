@@ -1,8 +1,17 @@
 """LLM 기반(또는 미설정 시 규칙 기반 폴백) 자연어 진단 리포트 생성.
 
-OPENAI_API_KEY 환경변수가 설정돼 있으면 OpenAI Chat Completions API를 호출하고,
-없으면 구조화된 데이터로 결정론적 한국어 리포트를 만드는 규칙 기반 폴백을 쓴다.
-프로토타입이 "API 키 없이도" 항상 작동해야 하므로 폴백을 기본 경로로 둔다.
+OPENAI_API_KEY 환경변수가 설정돼 있으면 OpenAI 호환 Chat Completions API를
+호출하고, 없으면 구조화된 데이터로 결정론적 한국어 리포트를 만드는 규칙 기반
+폴백을 쓴다. 프로토타입이 "API 키 없이도" 항상 작동해야 하므로 폴백을 기본
+경로로 둔다.
+
+엔드포인트는 OpenAI 호환이면 무엇이든 쓸 수 있다 (환경변수):
+  - OPENAI_API_KEY  : API 키 (없으면 폴백)
+  - OPENAI_BASE_URL : 기본값 https://api.openai.com/v1
+                      Groq: https://api.groq.com/openai/v1
+                      Gemini: https://generativelanguage.googleapis.com/v1beta/openai
+                      Upstage: https://api.upstage.ai/v1
+  - OPENAI_MODEL    : 기본값 gpt-4o-mini (Groq는 llama-3.3-70b-versatile 등)
 """
 from __future__ import annotations
 
@@ -38,8 +47,9 @@ def _call_openai(prompt: str) -> str | None:
             "temperature": 0.3,
         }
     ).encode("utf-8")
+    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
     req = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
+        f"{base_url}/chat/completions",
         data=body,
         headers={
             "Authorization": f"Bearer {api_key}",

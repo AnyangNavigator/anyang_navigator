@@ -24,7 +24,13 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.8
       # 리포트를 실제 LLM으로 생성하려면 설정(없으면 규칙 기반 폴백 — 앱은 정상 작동).
+      # OpenAI 호환이면 무엇이든 가능: OPENAI_BASE_URL/OPENAI_MODEL을 함께 지정하면
+      # Groq(무료)·Gemini(무료)·Upstage 등으로 교체됨. 자세한 표는 README 참고.
       - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        sync: false
+      - key: OPENAI_MODEL
         sync: false
       # 배포 도메인이 기본 하드코딩 키의 화이트리스트에 없으면 여기서 덮어쓴다.
       - key: NAVER_MAP_CLIENT_ID

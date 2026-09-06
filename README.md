@@ -69,6 +69,15 @@ python -m uvicorn app.main:app --reload
 
 브라우저에서 http://127.0.0.1:8000/dashboard 접속. LLM 리포트는 `OPENAI_API_KEY` 환경변수가 있으면 실제 LLM을 호출하고, 없으면 구조화 데이터 기반 규칙 리포트로 자동 폴백합니다(항상 작동 보장).
 
+LLM 엔드포인트는 OpenAI 호환이면 무엇이든 씁니다. 무료로 쓰려면 `OPENAI_BASE_URL`·`OPENAI_MODEL`을 함께 지정하세요:
+
+| 서비스 | `OPENAI_BASE_URL` | `OPENAI_MODEL` 예 | 비고 |
+|---|---|---|---|
+| OpenAI (기본) | (미설정) | `gpt-4o-mini` | 선불 크레딧 필요 |
+| Groq | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` | 무료 티어, 카드 불필요 |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.0-flash` | 무료 티어(rate limit) |
+| Upstage Solar | `https://api.upstage.ai/v1` | `solar-pro` | 가입 시 무료 크레딧 |
+
 지도는 카카오맵 대신 **네이버 지도(NCP Maps) Dynamic Map**으로 구현했습니다. 기본 Client ID는 [main.py](app/main.py)에 하드코딩돼 있고(도메인 화이트리스트로 보호되는 공개 키라 노출돼도 무방), 배포 도메인이 바뀌면 `NAVER_MAP_CLIENT_ID` 환경변수로 덮어쓰면 됩니다. NCP 콘솔의 해당 애플리케이션에 **Dynamic Map**이 켜져 있어야 하고, Web 서비스 URL에 실제 접속 도메인(로컬 `http://127.0.0.1:8000` 포함)이 등록돼 있어야 합니다. (이전에는 동 이름을 좌표로 바꾸는 Geocoding도 필요했지만, 실제 행정동 경계 GeoJSON을 직접 서빙하는 방식으로 바뀌면서 더 이상 필요하지 않습니다.)
 
 행정동 경계 GeoJSON(`data/anyang_dong_boundaries.geojson`)은 [vuski/admdongkor](https://github.com/vuski/admdongkor) 공개 데이터에서 `scripts/extract_anyang_geojson.py`로 추출한 것입니다. 원본 소스가 갱신되어 동 이름이 바뀌면 이 스크립트를 다시 돌리면 됩니다.
@@ -79,7 +88,7 @@ python -m uvicorn app.main:app --reload
 
 1. [render.com](https://render.com) → **New → Blueprint** → 이 저장소 연결 → `render.yaml`이 자동 인식됨
 2. 서비스 환경변수 설정 (Render 대시보드):
-   - `OPENAI_API_KEY` — 선택. 없으면 규칙 기반 리포트로 폴백(앱은 정상 작동)
+   - `OPENAI_API_KEY` — 선택. 없으면 규칙 기반 리포트로 폴백(앱은 정상 작동). 무료로 쓰려면 위 표대로 `OPENAI_BASE_URL`·`OPENAI_MODEL`도 함께 설정
    - `NAVER_MAP_CLIENT_ID` — 선택. 배포 도메인이 기본 하드코딩 키의 화이트리스트 밖이면 설정
 3. **NCP 콘솔** → 네이버 지도 애플리케이션 → Web 서비스 URL에 **배포된 `*.onrender.com` 도메인 추가** (안 하면 지도 타일이 안 뜸)
 4. 헬스체크 경로는 `/healthz` (데이터 로드까지 확인). 배포 후 `/dashboard`, `/simulator`, `/api/dong-boundaries`, 리포트 생성, 챗봇을 육안 스모크 확인
