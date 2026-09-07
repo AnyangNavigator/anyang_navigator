@@ -24,12 +24,13 @@
         <tr><td class="py-2 pr-3">지역 불만족 이유</td><td class="py-2 pr-3">구 (만안/동안)</td><td class="py-2 pr-3">2025 안양시 사회조사 (문항 16-3)</td></tr>
         <tr><td class="py-2 pr-3">인구·세대수</td><td class="py-2 pr-3">행정동 31개</td><td class="py-2 pr-3">주민등록인구통계 (2025.12.31 기준)</td></tr>
         <tr><td class="py-2 pr-3">연령대별 인구 (5세 단위)</td><td class="py-2 pr-3">행정동 31개</td><td class="py-2 pr-3">주민등록인구통계 (2025.12.31 기준)</td></tr>
-        <tr><td class="py-2 pr-3">행정동 경계 폴리곤</td><td class="py-2 pr-3">행정동 31개</td><td class="py-2 pr-3">vuski/admdongkor 공개데이터 (ver20260401)</td></tr>
+        <tr><td class="py-2 pr-3">행정동 경계 폴리곤</td><td class="py-2 pr-3">행정동 31개</td><td class="py-2 pr-3">국가데이터처_SGIS 행정구역 통계 및 경계 (data.go.kr, 기준일 2025-06-30) · 원본 좌표계 EPSG:5179 → WGS84 변환</td></tr>
         <tr><td class="py-2 pr-3">시설 현황 — 공영주차장·병원·약국·어린이집·도서관·도시공원</td><td class="py-2 pr-3">시설 개별 (좌표/주소)</td><td class="py-2 pr-3">공공데이터포털 표준데이터 · 경기데이터드림 (2025~2026)</td></tr>
       </tbody>
     </table>
   </div>
   <p class="text-xs text-slate-400 mt-3">숫자를 인용할 때는 항상 <code>data/</code> 폴더의 CSV를 기준으로 삼습니다. <code>reference/</code>의 제출서류 초안 docx에는 문항 16-3 수치 오류가 있어 맥락 참고용으로만 씁니다.</p>
+  <p class="text-xs text-slate-400 mt-1">행정동 경계 원본(기준일 2025-06-30)의 만안구 동 이름은 안양시의 2025-04-30 개칭 공고 이전 이름(박달1동·박달2동)이라, 이 프로젝트에서는 개칭 이후 이름(박달동·호현동)으로 맞춰서 씁니다 — 경계 자체는 바뀌지 않은 순수 명칭 변경입니다. 추출 로직은 <code>scripts/extract_anyang_geojson.py</code> 참고.</p>
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
