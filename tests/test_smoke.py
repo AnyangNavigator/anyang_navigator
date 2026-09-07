@@ -303,6 +303,18 @@ def test_call_openai_respects_base_url_and_model(monkeypatch):
     # 후행 슬래시가 있어도 정확히 한 번만 붙어야 한다.
     assert captured["url"] == "https://api.groq.com/openai/v1/chat/completions"
     assert captured["body"]["model"] == "llama-3.3-70b-versatile"
+    # 무료 티어 토큰 한도·비용 대비 상한 (#28).
+    assert captured["body"]["max_tokens"] == report._MAX_TOKENS
+
+
+def test_scenario_prompt_omits_raw_internal_fields(monkeypatch):
+    # 프롬프트에 원시 __dict__(manan_projected·trend 등)를 그대로 넣으면 모델이
+    # 내부 계산값을 실측치처럼 인용할 수 있다 (#28). 레이블된 값만 전달.
+    _, res = simulator.run_scenario("yangji")
+    prompt = report._scenario_prompt({"name": "n", "description": "d"}, res)
+    assert "manan_projected" not in prompt
+    assert "trend" not in prompt
+    assert "가정 기반 추정" in prompt
 
 
 def test_call_openai_falls_back_when_content_is_null(monkeypatch):
