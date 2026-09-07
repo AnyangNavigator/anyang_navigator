@@ -40,7 +40,7 @@
 
 | 파일 | 데이터 | 출처 | 기준 |
 |---|---|---|---|
-| `anyang_dong_boundaries.geojson` | 안양시 31개 행정동 경계 폴리곤 | [vuski/admdongkor](https://github.com/vuski/admdongkor) ver20260401 — ⚠️ **공식 공공데이터(vworld/SGIS)로 교체 예정 (이슈 #30)** | 2026-04-01 |
+| `anyang_dong_boundaries.geojson` | 안양시 31개 행정동 경계 폴리곤 | [국가데이터처_SGIS 행정구역 통계 및 경계](https://www.data.go.kr/data/15129688/fileData.do) (data.go.kr, 데이터셋 15129688). 원본 EPSG:5179(Korea 2000) → WGS84 변환, 2025-04-30 동 개칭(박달1동→박달동, 박달2동→호현동) 반영. 추출: `scripts/extract_anyang_geojson.py` | 2025-06-30 |
 
 ## 지도 타일
 
