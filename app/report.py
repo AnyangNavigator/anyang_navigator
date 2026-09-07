@@ -23,6 +23,18 @@ import urllib.error
 from . import data
 from .simulator import SimulationResult
 
+# api.groq.com 등은 Cloudflare 뒤에 있고, urllib 기본 UA(`Python-urllib/3.x`)는
+# 봇 차단(HTTP 403, error code 1010)에 걸린다. 일반적인 UA를 명시한다.
+_USER_AGENT = "Mozilla/5.0 (compatible; anyang-navigator/1.0; +https://anyang-navigator.onrender.com)"
+
+
+def _openai_headers(api_key: str) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": _USER_AGENT,
+    }
+
 SYSTEM_PROMPT = (
     "당신은 안양시 균형발전 데이터 분석 보조원입니다. 주어진 구조화 데이터만 근거로 "
     "간결한 한국어 진단 리포트를 작성하세요. 반드시 지켜야 할 규칙: "
@@ -51,10 +63,7 @@ def _call_openai(prompt: str) -> str | None:
     req = urllib.request.Request(
         f"{base_url}/chat/completions",
         data=body,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
+        headers=_openai_headers(api_key),
         method="POST",
     )
     try:
@@ -99,7 +108,7 @@ def diagnose() -> dict:
     req = urllib.request.Request(
         f"{base_url}/chat/completions",
         data=body,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        headers=_openai_headers(api_key),
         method="POST",
     )
     try:

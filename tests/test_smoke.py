@@ -324,6 +324,7 @@ def test_call_openai_respects_base_url_and_model(monkeypatch):
     def fake_urlopen(req, timeout=None):
         captured["url"] = req.full_url
         captured["body"] = json.loads(req.data.decode("utf-8"))
+        captured["ua"] = req.get_header("User-agent") or ""
         return FakeResponse()
 
     with patch("app.report.urllib.request.urlopen", fake_urlopen):
@@ -333,6 +334,8 @@ def test_call_openai_respects_base_url_and_model(monkeypatch):
     # 후행 슬래시가 있어도 정확히 한 번만 붙어야 한다.
     assert captured["url"] == "https://api.groq.com/openai/v1/chat/completions"
     assert captured["body"]["model"] == "llama-3.3-70b-versatile"
+    # Cloudflare 봇 차단(error 1010) 회피용 — urllib 기본 UA면 안 된다.
+    assert "python-urllib" not in captured["ua"].lower()
 
 
 def test_call_openai_falls_back_when_content_is_null(monkeypatch):
