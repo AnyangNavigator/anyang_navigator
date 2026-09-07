@@ -245,6 +245,34 @@ def test_api_chat():
     assert "answer" in res.json()
 
 
+def test_chatbot_falls_back_to_rule_based_without_llm(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    from app import chatbot
+
+    ans = chatbot.answer("주차시설은 어때?", "안양1동")
+    # 규칙 기반 폴백: 구 단위 수치를 결정론적으로 반환.
+    assert "만안구 41.7%" in ans and "동안구 26.5%" in ans
+
+
+def test_chatbot_uses_llm_with_structured_context(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    from app import chatbot
+
+    captured = {}
+
+    def fake_llm(prompt, system=None):
+        captured["prompt"] = prompt
+        captured["system"] = system
+        return "LLM 답변입니다."
+
+    monkeypatch.setattr(chatbot, "_call_openai", fake_llm)
+    ans = chatbot.answer("도서관 필요한가요?", "평촌동")
+    assert ans == "LLM 답변입니다."
+    # retrieval 단계가 관련 구조화 데이터를 컨텍스트에 넣어야 한다.
+    assert "도서관" in captured["prompt"] and "평촌동" in captured["prompt"]
+    assert "구 단위" in captured["system"]
+
+
 def test_api_dong_boundaries():
     res = client.get("/api/dong-boundaries")
     assert res.status_code == 200

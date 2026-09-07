@@ -1,11 +1,16 @@
-"""규칙 기반 챗봇 (RAG 대신 구조화 쿼리).
+"""챗봇: 구조화 쿼리로 관련 데이터를 찾아 컨텍스트로 LLM에 전달(RAG-lite).
 
-문항 수가 적어 벡터DB 없이도 키워드 매칭 + 구조화 데이터 조회로 충분하다는
-PROJECT_SPEC.md 5절의 판단에 따라 구현. 항상 "구 단위" 출처를 명시한다.
+벡터DB 없이, 키워드 매칭으로 질문에 관련된 구조화 데이터(동/시설/구 수치)를
+추린 뒤 LLM에 넘겨 답을 생성한다(PROJECT_SPEC 5절). `OPENAI_API_KEY`가 없거나
+LLM 호출이 실패하면 결정론적 규칙 기반 답변으로 폴백한다. 항상 "구 단위" 출처를
+명시한다.
 """
 from __future__ import annotations
 
+import json
+
 from . import data
+from .report import _call_openai
 
 FACILITY_KEYWORDS = {
     "주차": "공영주차시설",
@@ -27,6 +32,15 @@ FACILITY_KEYWORDS = {
 
 OTHER_GU = {"만안구": "동안구", "동안구": "만안구"}
 
+_CHAT_SYSTEM = (
+    "당신은 안양시 균형발전 데이터 안내 챗봇입니다. 아래 [컨텍스트]의 구조화 데이터만 "
+    "근거로 2~4문장으로 답하세요. 규칙: "
+    "(1) 사회조사 수치는 만안구/동안구 '구 단위'이며 행정동 단위 만족도는 존재하지 않음 — 지어내지 말 것. "
+    "(2) 컨텍스트에 없는 값은 '데이터가 없다'고 답할 것. "
+    "(3) 숫자는 컨텍스트 값 그대로 인용. "
+    "(4) 마크다운 제목·표 없이 짧은 문단으로."
+)
+
 
 def _find_dong(question: str) -> str | None:
     for d in data.list_dong():
@@ -42,11 +56,37 @@ def _find_facility(question: str) -> str | None:
     return None
 
 
-def answer(question: str, current_dong: str | None = None) -> str:
-    mentioned_dong = _find_dong(question)
-    facility = _find_facility(question)
+def _build_context(question: str, dong_name: str | None, facility: str | None) -> dict:
+    """질문에 관련된 구조화 데이터만 추린다 (RAG의 retrieval 단계)."""
+    ctx: dict = {"질문": question}
+    d = data.get_dong(dong_name) if dong_name else None
+    if d:
+        ctx["대상 행정동"] = {
+            "이름": d.dong,
+            "소속 구": d.gu,
+            "총인구": d.total_population,
+            "세대수": d.households,
+        }
+        ctx["참고"] = "행정동 단위 만족도·필요도 데이터는 존재하지 않음. 아래는 소속 구 평균."
+        ctx["소속 구 사회조사(2025)"] = data.get_gu_survey_snapshot(d.gu)
+        other_gu = OTHER_GU[d.gu]
+        ctx["반대편 구 사회조사(2025)"] = data.get_gu_survey_snapshot(other_gu)
+    if facility:
+        needed = data.load_needed_facilities()
+        manan = float(needed.loc["만안구", facility])
+        dongan = float(needed.loc["동안구", facility])
+        ctx["문의 시설 필요도(구 단위, %)"] = {
+            "시설": facility,
+            "만안구": manan,
+            "동안구": dongan,
+            "격차(만안구-동안구, %p)": round(manan - dongan, 1),
+        }
+    if not d and not facility:
+        ctx["안내"] = "동 이름이나 시설 유형(주차/보건/복지/문화/체육/도서관/공원/어린이집)을 포함해 물어보세요."
+    return ctx
 
-    dong_name = mentioned_dong or current_dong
+
+def _rule_based_answer(question: str, dong_name: str | None, facility: str | None) -> str:
     d = data.get_dong(dong_name) if dong_name else None
 
     if facility:
@@ -85,3 +125,15 @@ def answer(question: str, current_dong: str | None = None) -> str:
         "질문을 이해하지 못했습니다. 예: '주차시설은 어때?', '옆 동이랑 비교해줘' "
         "처럼 시설 유형이나 비교 요청을 포함해 물어봐주세요."
     )
+
+
+def answer(question: str, current_dong: str | None = None) -> str:
+    facility = _find_facility(question)
+    dong_name = _find_dong(question) or current_dong
+
+    context = _build_context(question, dong_name, facility)
+    prompt = f"[컨텍스트]\n{json.dumps(context, ensure_ascii=False, indent=2)}\n\n위 데이터로 질문에 답하세요."
+    llm = _call_openai(prompt, system=_CHAT_SYSTEM)
+    if llm:
+        return llm
+    return _rule_based_answer(question, dong_name, facility)
