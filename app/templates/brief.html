@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>정책 브리핑 — 안양 균형발전 내비게이터</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @media print {
+    .no-print { display: none !important; }
+    body { background: #fff; }
+    @page { margin: 18mm; }
+  }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<div class="max-w-3xl mx-auto my-8 bg-white p-10 shadow-sm print:shadow-none print:my-0">
+
+  <div class="no-print mb-6 flex gap-2">
+    <button onclick="window.print()" class="text-xs bg-slate-800 text-white px-3 py-1.5 rounded-md hover:bg-slate-900">인쇄 / PDF로 저장</button>
+    <a href="/simulator" class="text-xs border border-slate-300 text-slate-600 px-3 py-1.5 rounded-md hover:bg-slate-50">시뮬레이터로 돌아가기</a>
+    <span class="text-xs text-slate-400 self-center">※ 인쇄 대화상자에서 "대상: PDF로 저장" 선택</span>
+  </div>
+
+  {% if error %}
+  <p class="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-4">브리핑을 생성할 수 없습니다: {{ error }}</p>
+  {% else %}
+
+  <header class="border-b-2 border-slate-800 pb-3 mb-6">
+    <p class="text-xs text-slate-500">안양 균형발전 내비게이터 · 정책 시뮬레이션 브리핑</p>
+    <h1 class="text-xl font-bold text-slate-900 mt-1">{{ scenario.name }}</h1>
+    <p class="text-xs text-slate-400 mt-1">생성일 {{ generated_at }} · 대상: {{ result.region }} · {{ result.facility }} {{ result.num_facilities }}개소</p>
+  </header>
+
+  <section class="mb-6">
+    <h2 class="text-sm font-bold text-slate-700 mb-2">1. 시나리오</h2>
+    <p class="text-sm text-slate-600 leading-relaxed">{{ scenario.description }}</p>
+  </section>
+
+  <section class="mb-6">
+    <h2 class="text-sm font-bold text-slate-700 mb-2">2. 현재 격차 (2025 안양시 사회조사 근거)</h2>
+    <table class="w-full text-sm border-collapse">
+      <tbody class="divide-y divide-slate-100">
+        <tr><td class="py-1.5 pr-3 text-slate-500">{{ result.facility }} "향후 필요" 응답률 — 만안구</td><td class="py-1.5 font-semibold">{{ result.manan_current }}%</td></tr>
+        <tr><td class="py-1.5 pr-3 text-slate-500">{{ result.facility }} "향후 필요" 응답률 — 동안구</td><td class="py-1.5 font-semibold">{{ result.dongan_current }}%</td></tr>
+        <tr><td class="py-1.5 pr-3 text-slate-500">현재 격차 (만안구 − 동안구)</td><td class="py-1.5 font-bold">{{ result.current_gap }}%p</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="mb-6">
+    <h2 class="text-sm font-bold text-slate-700 mb-2">3. 시뮬레이션 결과</h2>
+    <div class="grid grid-cols-3 gap-3 text-center">
+      <div class="border border-slate-200 rounded p-3">
+        <div class="text-xs text-slate-500">현재 격차</div>
+        <div class="text-lg font-bold">{{ result.current_gap }}%p</div>
+      </div>
+      <div class="border border-slate-200 rounded p-3">
+        <div class="text-xs text-slate-500">예상 감소폭</div>
+        <div class="text-lg font-bold text-blue-700">−{{ result.estimated_reduction }}%p</div>
+      </div>
+      <div class="border border-slate-200 rounded p-3">
+        <div class="text-xs text-slate-500">투입 후 예상 격차</div>
+        <div class="text-lg font-bold">{{ result.projected_gap }}%p</div>
+      </div>
+    </div>
+    {% if result.adverse_warning %}
+    <p class="text-sm text-red-700 font-semibold mt-3">⚠ {{ result.adverse_warning }}</p>
+    {% endif %}
+  </section>
+
+  <section class="mb-6">
+    <h2 class="text-sm font-bold text-slate-700 mb-2">4. 정책 제언</h2>
+    <pre class="text-sm whitespace-pre-wrap font-sans leading-relaxed text-slate-700">{{ report }}</pre>
+  </section>
+
+  <section class="mb-6 bg-amber-50 border border-amber-200 rounded p-3">
+    <p class="text-xs text-amber-800"><strong>해석상 주의</strong> — {{ result.assumption_note }} 이 브리핑은 정밀 예측이 아니라 생활SOC 투자 우선순위를 <em>논의</em>하기 위한 의사결정 보조 자료입니다.</p>
+  </section>
+
+  <footer class="border-t border-slate-200 pt-3 text-xs text-slate-400">
+    데이터 출처: 2025 안양시 사회조사(구 단위 필요도), 2025.12.31 주민등록인구통계(행정동 단위). 방법론·한계 전문은 서비스 내 "데이터·방법론" 페이지 참조.
+  </footer>
+
+  {% endif %}
+</div>
+</body>
+</html>

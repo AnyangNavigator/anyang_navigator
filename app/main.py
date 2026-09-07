@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import os
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
@@ -102,6 +103,26 @@ def simulator_page(request: Request):
     )
 
 
+def _resolve_scenario(
+    scenario_id: str | None,
+    region: str | None,
+    facility: str | None,
+    num_facilities: int | None,
+    budget: float | None = None,
+) -> tuple[dict, simulator.SimulationResult]:
+    """폼/쿼리 입력을 (시나리오 dict, 시뮬레이션 결과)로 변환. ValueError는 호출부에서 처리."""
+    if scenario_id:
+        return simulator.run_scenario(scenario_id)
+    scenario = {
+        "name": f"사용자 정의: {region} · {facility}",
+        "description": f"{region}에 {facility} {num_facilities or ''}개소를 신규 공급하는 시나리오.",
+    }
+    result = simulator.simulate(
+        region=region, facility=facility, num_facilities=num_facilities, budget=budget
+    )
+    return scenario, result
+
+
 @app.post("/simulator")
 def simulator_submit(
     request: Request,
@@ -111,14 +132,7 @@ def simulator_submit(
     num_facilities: int | None = Form(None),
 ):
     try:
-        if scenario_id:
-            scenario, result = simulator.run_scenario(scenario_id)
-        else:
-            scenario = {
-                "name": f"사용자 정의: {region} · {facility}",
-                "description": f"{region}에 {facility} {num_facilities}개소를 신규 공급하는 시나리오.",
-            }
-            result = simulator.simulate(region=region, facility=facility, num_facilities=num_facilities)
+        scenario, result = _resolve_scenario(scenario_id, region, facility, num_facilities)
         report_text = report.generate_scenario_report(scenario, result)
     except ValueError as e:
         return templates.TemplateResponse(
@@ -136,6 +150,11 @@ def simulator_submit(
             },
         )
 
+    brief_query = (
+        f"?scenario_id={scenario_id}"
+        if scenario_id
+        else f"?region={result.region}&facility={result.facility}&num_facilities={result.num_facilities}"
+    )
     return templates.TemplateResponse(
         request,
         "simulator.html",
@@ -147,7 +166,41 @@ def simulator_submit(
             "form": {"region": result.region, "facility": result.facility, "num_facilities": result.num_facilities},
             "result": result,
             "report": report_text,
+            "brief_query": brief_query,
             "error": None,
+        },
+    )
+
+
+@app.get("/simulator/brief", response_class=HTMLResponse)
+def simulator_brief(
+    request: Request,
+    scenario_id: str | None = None,
+    region: str | None = None,
+    facility: str | None = None,
+    num_facilities: int | None = None,
+    budget: float | None = None,
+):
+    """시뮬레이션 결과를 인쇄·PDF용 정책 브리핑 한 장으로 렌더한다 (발전 가능성 — 행정 활용)."""
+    try:
+        scenario, result = _resolve_scenario(scenario_id, region, facility, num_facilities, budget)
+        report_text = report.generate_scenario_report(scenario, result)
+    except ValueError as e:
+        return templates.TemplateResponse(
+            request, "brief.html", {"error": str(e), "scenario": None, "result": None}
+        )
+
+    gu_snapshot = data.get_gu_survey_snapshot(result.region)
+    return templates.TemplateResponse(
+        request,
+        "brief.html",
+        {
+            "error": None,
+            "scenario": scenario,
+            "result": result,
+            "report": report_text,
+            "gu_needed": gu_snapshot["needed_facilities"],
+            "generated_at": datetime.now().strftime("%Y-%m-%d"),
         },
     )
 

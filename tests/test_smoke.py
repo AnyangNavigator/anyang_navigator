@@ -50,6 +50,36 @@ def test_simulator_default_scenario():
     assert "양지마을" in res.text
 
 
+def test_simulator_brief_scenario():
+    res = client.get("/simulator/brief", params={"scenario_id": "yangji"})
+    assert res.status_code == 200
+    assert "정책 시뮬레이션 브리핑" in res.text
+    assert "정책 제언" in res.text
+    # 사회조사 근거 수치가 브리핑에 인용돼야 한다.
+    assert "향후 필요" in res.text
+
+
+def test_simulator_brief_custom_and_error():
+    ok = client.get(
+        "/simulator/brief",
+        params={"region": "만안구", "facility": "공영주차시설", "num_facilities": 3},
+    )
+    assert ok.status_code == 200
+    assert "공영주차시설" in ok.text
+    # 잘못된 입력은 500이 아니라 에러 안내 페이지
+    bad = client.get(
+        "/simulator/brief",
+        params={"region": "만안구", "facility": "없는시설", "num_facilities": 1},
+    )
+    assert bad.status_code == 200
+    assert "브리핑을 생성할 수 없습니다" in bad.text
+
+
+def test_simulator_result_has_brief_link():
+    res = client.post("/simulator", data={"scenario_id": "yangji"})
+    assert "/simulator/brief?scenario_id=yangji" in res.text
+
+
 def test_simulator_custom_scenario():
     res = client.post(
         "/simulator",
