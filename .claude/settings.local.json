@@ -1,0 +1,8 @@
+﻿{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr review:*)",
+      "Bash(gh api:*)"
+    ]
+  }
+}
