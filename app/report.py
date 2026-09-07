@@ -141,6 +141,7 @@ def rule_based_scenario_report(scenario: dict, result: SimulationResult) -> str:
             f"- {result.region}에 {result.facility} {result.num_facilities}개소 신규 공급 시 "
             f"예상 감소폭: -{result.estimated_reduction}%p",
             f"- 시뮬레이션 후 예상 격차: {result.projected_gap}%p",
+            *( [f"- ⚠ {result.adverse_warning}"] if result.adverse_warning else [] ),
             "",
             f"※ {result.assumption_note}",
         ]
