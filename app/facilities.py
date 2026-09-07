@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -28,23 +29,27 @@ class FacilitySpec:
     weight_col: str | None  # None이면 개소수, 있으면 그 값의 합
     label: str
     unit: str  # "개소" | "㎡" | "병상"
+    status_col: str | None = None  # 영업상태 컬럼 (있는 CSV만)
+    status_ok: str = "영업"  # status_col 값에 이 문자열이 있어야 유효
 
 
 REGISTRY: dict[str, FacilitySpec] = {
     "parking": FacilitySpec("parking", "facilities_parking.csv", "LATITUDE", "LONGITUDE", None, "공영주차장", "개소"),
     "library": FacilitySpec("library", "facilities_library.csv", "LATITUDE", "LONGITUDE", None, "도서관", "개소"),
     "park": FacilitySpec("park", "facilities_park.csv", "LATITUDE", "LONGITUDE", "PARK_AR", "도시공원", "㎡"),
-    "childcare": FacilitySpec("childcare", "facilities_childcare.csv", "wgs84_lat", "wgs84_logt", None, "어린이집·유치원", "개소"),
-    "hospital": FacilitySpec("hospital", "facilities_hospital.csv", "refine_wgs84_lat", "refine_wgs84_logt", "sickbd_cnt", "병원(병원급 이상)", "병상"),
+    "childcare": FacilitySpec("childcare", "facilities_childcare.csv", "wgs84_lat", "wgs84_logt", None, "어린이집", "개소"),
+    # 원본에 폐업·전출 병원이 섞여 있어(47행 중 17행) 병상수가 ~38% 부풀려짐 → 영업중만 집계.
+    "hospital": FacilitySpec("hospital", "facilities_hospital.csv", "refine_wgs84_lat", "refine_wgs84_logt", "sickbd_cnt", "병원(병원급 이상)", "병상", status_col="bsn_state_nm"),
     "pharmacy": FacilitySpec("pharmacy", "facilities_pharmacy.csv", "refine_wgs84_lat", "refine_wgs84_logt", None, "약국", "개소"),
 }
 
 
 def _to_float(v: str | None) -> float | None:
     try:
-        return float(v) if v not in (None, "") else None
+        f = float(v) if v not in (None, "") else None
     except (TypeError, ValueError):
         return None
+    return None if (f is not None and math.isnan(f)) else f
 
 
 @lru_cache
@@ -53,9 +58,13 @@ def load_facilities(kind: str) -> list[dict]:
     spec = REGISTRY.get(kind)
     if spec is None:
         raise ValueError(f"알 수 없는 시설 종류: {kind} (가능: {sorted(REGISTRY)})")
-    df = data._read_csv(spec.filename)
+    df = data.read_csv(spec.filename)
     out: list[dict] = []
     for row in df.to_dict("records"):
+        if spec.status_col is not None:
+            state = str(row.get(spec.status_col) or "")
+            if spec.status_ok not in state:  # 폐업·전출 등 제외
+                continue
         lat = _to_float(row.get(spec.lat_col))
         lng = _to_float(row.get(spec.lng_col))
         weight = _to_float(row.get(spec.weight_col)) if spec.weight_col else None

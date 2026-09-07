@@ -39,6 +39,19 @@ def test_supply_by_dong_covers_all_31_dong():
         assert all(v >= 0 for v in metrics.values())
 
 
+def test_hospital_excludes_closed_beds():
+    # facilities_hospital.csv에는 폐업·전출 병원이 섞여 있다(47행 중 17행).
+    # 병상 공급 집계에는 영업중 병원만 들어가야 한다 (#37 리뷰).
+    raw = data.read_csv("facilities_hospital.csv")
+    operating_beds = int(raw[raw["bsn_state_nm"].str.contains("영업")]["sickbd_cnt"].sum())
+    counted_beds = round(sum(facilities.count_by_dong("hospital").values()))
+    assert counted_beds == operating_beds  # 폐업분(약 1,394병상) 미포함
+    assert len(facilities.load_facilities("hospital")) < len(raw)  # 일부 행 제외됨
+    # 폐업 병원이 특정 동 지표를 튀게 만들지 않는지 — 모든 동 병상/1,000명이 상식적 상한 이내
+    for metrics in facilities.supply_by_dong().values():
+        assert metrics["hospital"] < 100  # 병상 100개/1,000명 이상은 데이터 이상 신호
+
+
 def test_dashboard_default():
     res = client.get("/dashboard")
     assert res.status_code == 200
