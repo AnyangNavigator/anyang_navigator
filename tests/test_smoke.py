@@ -75,6 +75,36 @@ def test_simulator_missing_num_facilities_and_budget_shows_error():
     assert "시뮬레이션을 실행할 수 없습니다" in res.text
 
 
+def test_simulate_rejects_non_positive_num_facilities():
+    # 폼(min="0")/스피너를 우회한 직접 호출로 0·음수가 들어오면 격차가
+    # 오히려 커지는 결과가 나온다 → ValueError로 막아야 한다 (#9 A1).
+    for bad in (-5, 0):
+        try:
+            simulator.simulate(region="만안구", facility="공영주차시설", num_facilities=bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"num_facilities={bad}는 ValueError를 내야 한다")
+
+
+def test_simulator_negative_num_facilities_shows_error_not_crash():
+    res = client.post(
+        "/simulator",
+        data={"region": "만안구", "facility": "공영주차시설", "num_facilities": "-5"},
+    )
+    assert res.status_code == 200
+    assert "시뮬레이션을 실행할 수 없습니다" in res.text
+
+
+def test_api_simulate_negative_num_facilities_returns_error():
+    res = client.post(
+        "/api/simulate",
+        json={"region": "만안구", "facility": "공영주차시설", "num_facilities": -5},
+    )
+    assert res.status_code == 200
+    assert "error" in res.json()
+
+
 def test_healthz():
     res = client.get("/healthz")
     assert res.status_code == 200
