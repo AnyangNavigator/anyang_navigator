@@ -41,8 +41,14 @@ SYSTEM_PROMPT = (
     "(1) '구 단위 통계'(만안구/동안구 사회조사 결과)와 '동 단위 통계'(행정동 인구/시설밀도)를 "
     "명확히 구분해서 서술할 것 — 동 단위 만족도 데이터는 존재하지 않으므로 이를 지어내지 말 것. "
     "(2) 숫자를 과장하거나 임의로 추정하지 말고 주어진 값만 인용할 것. "
-    "(3) 시뮬레이션 결과가 있다면 이는 실측이 아닌 추정 가정임을 명시할 것."
+    "(3) 시뮬레이션 결과가 있다면 이는 실측이 아닌 추정 가정임을 명시할 것. "
+    "(4) '역효과 경고'가 주어지면 그 내용을 리포트 첫 문장에 반드시 포함할 것. "
+    "(5) 마크다운 제목(#)·표는 쓰지 말고 짧은 문단으로 작성할 것."
 )
+
+# 리포트는 짧은 문단이면 충분하고, 무료 LLM 티어의 토큰 한도·비용·지연을
+# 감안해 상한을 둔다.
+_MAX_TOKENS = 700
 
 
 def _call_openai(prompt: str) -> str | None:
@@ -57,6 +63,7 @@ def _call_openai(prompt: str) -> str | None:
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.3,
+            "max_tokens": _MAX_TOKENS,
         }
     ).encode("utf-8")
     base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
@@ -178,11 +185,23 @@ def generate_dong_report(dong_name: str) -> str:
 
 
 def _scenario_prompt(scenario: dict, result: SimulationResult) -> str:
+    # 원시 __dict__를 그대로 넘기면 모델이 manan_projected·trend 같은 내부 필드를
+    # 실측치처럼 인용할 수 있다. 레이블을 붙인 핵심 값만 전달한다.
+    facts = {
+        "지역": result.region,
+        "시설": result.facility,
+        "신규 개소수": result.num_facilities,
+        "현재 격차(만안구-동안구, %p)": result.current_gap,
+        "예상 격차 감소폭(%p, 가정 추정)": result.estimated_reduction,
+        "시뮬레이션 후 예상 격차(%p, 가정 추정)": result.projected_gap,
+        "역효과 경고": result.adverse_warning or "없음",
+        "가정 설명": result.assumption_note,
+    }
     return (
         f"정책 시나리오: {scenario['name']}\n{scenario['description']}\n\n"
-        f"[시뮬레이션 결과]\n{json.dumps(result.__dict__, ensure_ascii=False)}\n\n"
-        "이 시뮬레이션 결과를 바탕으로 3~4문장 정책 브리핑을 작성하세요. "
-        "이 수치가 실측이 아닌 가정 기반 추정임을 반드시 언급하세요."
+        f"[시뮬레이션 결과]\n{json.dumps(facts, ensure_ascii=False, indent=2)}\n\n"
+        "위 값을 바탕으로 3~4문장 정책 브리핑을 작성하세요. "
+        "격차 감소폭·예상 격차는 실측이 아닌 가정 기반 추정임을 반드시 언급하세요."
     )
 
 
