@@ -51,6 +51,8 @@ def about(request: Request):
             "active": "about",
             "improvement_coef": simulator.FACILITY_IMPROVEMENT_COEF,
             "unit_cost": simulator.FACILITY_UNIT_COST,
+            "coef_basis": simulator.COEF_BASIS,
+            "unit_cost_basis": simulator.UNIT_COST_BASIS,
         },
     )
 
