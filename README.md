@@ -82,7 +82,7 @@ LLM 엔드포인트는 OpenAI 호환이면 무엇이든 씁니다. 무료로 쓰
 
 지도는 카카오맵 대신 **네이버 지도(NCP Maps) Dynamic Map**으로 구현했습니다. 기본 Client ID는 [main.py](app/main.py)에 하드코딩돼 있고(도메인 화이트리스트로 보호되는 공개 키라 노출돼도 무방), 배포 도메인이 바뀌면 `NAVER_MAP_CLIENT_ID` 환경변수로 덮어쓰면 됩니다. NCP 콘솔의 해당 애플리케이션에 **Dynamic Map**이 켜져 있어야 하고, Web 서비스 URL에 실제 접속 도메인(로컬 `http://127.0.0.1:8000` 포함)이 등록돼 있어야 합니다. (이전에는 동 이름을 좌표로 바꾸는 Geocoding도 필요했지만, 실제 행정동 경계 GeoJSON을 직접 서빙하는 방식으로 바뀌면서 더 이상 필요하지 않습니다.)
 
-행정동 경계 GeoJSON(`data/anyang_dong_boundaries.geojson`)은 [vuski/admdongkor](https://github.com/vuski/admdongkor) 공개 데이터에서 `scripts/extract_anyang_geojson.py`로 추출한 것입니다. 원본 소스가 갱신되어 동 이름이 바뀌면 이 스크립트를 다시 돌리면 됩니다.
+행정동 경계 GeoJSON(`data/anyang_dong_boundaries.geojson`)은 [국가데이터처_SGIS 행정구역 통계 및 경계](https://www.data.go.kr/data/15129688/fileData.do) (data.go.kr, 기준일 2025-06-30) 공식 공공데이터에서 `scripts/extract_anyang_geojson.py`로 추출한 것입니다. 원본 좌표계(EPSG:5179)를 WGS84로 변환하고, 안양시의 2025-04-30 동 이름 개칭(박달1동→박달동, 박달2동→호현동)을 반영합니다. 원본 소스가 갱신되어 동 이름이 바뀌면 이 스크립트를 다시 돌리면 됩니다. (이전에는 개인 저장소 vuski/admdongkor를 썼으나 이슈 #30에 따라 공식 출처로 교체했습니다.)
 
 ## 배포 (Render)
 

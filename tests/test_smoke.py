@@ -179,6 +179,36 @@ def test_api_report():
     assert "report" in res.json()
 
 
+def test_api_report_diag_without_key(monkeypatch):
+    # 키 없으면 원인이 명확히 보여야 하고, /api/report/{dong}보다 먼저 매칭돼야 한다.
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    res = client.get("/api/report/_diag")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["ok"] is False
+    assert body["env"]["OPENAI_API_KEY"] == "MISSING"
+
+
+def test_diagnose_reports_http_error_without_leaking_key(monkeypatch):
+    import io
+    import urllib.error
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-super-secret-value")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
+
+    def boom(*a, **k):
+        raise urllib.error.HTTPError(
+            "u", 401, "Unauthorized", {}, io.BytesIO(b'{"error":{"message":"Invalid API Key"}}')
+        )
+
+    with patch("app.report.urllib.request.urlopen", boom):
+        body = report.diagnose()
+    assert body["ok"] is False
+    assert "401" in body["reason"]
+    assert "Invalid API Key" in body["upstream_error"]
+    assert "sk-super-secret-value" not in json.dumps(body, ensure_ascii=False)
+
+
 def test_api_chat():
     res = client.post("/api/chat", json={"question": "주차시설은 어때?", "dong": "안양1동"})
     assert res.status_code == 200
@@ -294,6 +324,7 @@ def test_call_openai_respects_base_url_and_model(monkeypatch):
     def fake_urlopen(req, timeout=None):
         captured["url"] = req.full_url
         captured["body"] = json.loads(req.data.decode("utf-8"))
+        captured["ua"] = req.get_header("User-agent") or ""
         return FakeResponse()
 
     with patch("app.report.urllib.request.urlopen", fake_urlopen):
@@ -305,6 +336,8 @@ def test_call_openai_respects_base_url_and_model(monkeypatch):
     assert captured["body"]["model"] == "llama-3.3-70b-versatile"
     # 무료 티어 토큰 한도·비용 대비 상한 (#28).
     assert captured["body"]["max_tokens"] == report._MAX_TOKENS
+    # Cloudflare 봇 차단(error 1010) 회피용 — urllib 기본 UA면 안 된다 (#43).
+    assert "python-urllib" not in captured["ua"].lower()
 
 
 def test_scenario_prompt_omits_raw_internal_fields(monkeypatch):
