@@ -50,6 +50,18 @@
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-3">3-1. 행정동 유형 군집분석</h2>
+  <p class="text-sm text-slate-600 mb-2">31개 행정동을 <strong>인구 구조</strong>(65세 이상 비율·0~14세 비율·생산연령 비율·평균 가구원수)와 <strong>공공시설 공급 6종</strong>(인구 기준 정규화)으로 표현한 뒤, 표준화(<code>StandardScaler</code>) 후 <strong>KMeans</strong>로 유형화합니다.</p>
+  <ul class="text-xs text-slate-500 space-y-1 list-disc pl-5">
+    <li>군집 수 <code>k</code>는 3~6 중 <strong>실루엣 점수</strong>가 가장 높은 값을 자동 선택합니다.</li>
+    <li><code>random_state</code>를 고정해 실행할 때마다 같은 결과가 나옵니다(재현 가능). 산출 로직: <code>app/cluster.py</code>.</li>
+    <li>특징 변수는 모두 <strong>비율·인구당 밀도</strong>라 동 규모(인구수) 자체가 군집을 지배하지 않습니다.</li>
+    <li><strong>군집은 유형 분류이지 우열이 아닙니다.</strong> "군집 0이 군집 1보다 낫다"는 해석은 성립하지 않습니다.</li>
+    <li>표본이 31개 동뿐이라 실루엣 점수가 높지 않습니다 — 탐색적 유형화로만 읽어야 하며, 개별 동의 소속을 단정적 근거로 쓰면 안 됩니다.</li>
+  </ul>
+</section>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
   <h2 class="text-sm font-semibold text-slate-500 mb-1">4. What-if 시뮬레이터의 가정 계수</h2>
   <p class="text-xs text-amber-600 mb-3">⚠️ 아래 값은 모두 <strong>하드코딩된 가정값</strong>입니다. 실제 시설 확충 후 필요도 응답률 변화를 추적한 실측 데이터가 아니며, 정책 우선순위를 <em>논의</em>하기 위한 의사결정 보조 수치입니다.</p>
   <div class="overflow-x-auto">
