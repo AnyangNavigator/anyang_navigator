@@ -9,9 +9,47 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app import data, report, simulator
+from app import data, facilities, geo, report, simulator
 
 client = TestClient(app)
+
+
+def test_geo_point_maps_to_known_dong():
+    # 안양역 인근 좌표는 안양1동으로 매핑돼야 한다.
+    assert geo.dong_for_point(126.9226, 37.4018) == "안양1동"
+    # 안양시 밖(서울 시청)은 None.
+    assert geo.dong_for_point(126.9780, 37.5665) is None
+    assert geo.dong_for_point(None, None) is None
+
+
+def test_facilities_registry_loads_and_maps():
+    for kind in facilities.REGISTRY:
+        rows = facilities.load_facilities(kind)
+        assert rows, f"{kind} 로드 실패"
+        # 좌표→동 매핑 실패율이 10% 미만이어야 한다 (데이터 품질 가드).
+        assert facilities.unmapped_ratio(kind) < 0.10
+
+
+def test_supply_by_dong_covers_all_31_dong():
+    supply = facilities.supply_by_dong()
+    assert set(supply) == {d.dong for d in data.list_dong()}
+    # 모든 동에 6개 시설 종류 지표가 있어야 한다 (없으면 0).
+    for dong, metrics in supply.items():
+        assert set(metrics) == set(facilities.REGISTRY)
+        assert all(v >= 0 for v in metrics.values())
+
+
+def test_hospital_excludes_closed_beds():
+    # facilities_hospital.csv에는 폐업·전출 병원이 섞여 있다(47행 중 17행).
+    # 병상 공급 집계에는 영업중 병원만 들어가야 한다 (#37 리뷰).
+    raw = data.read_csv("facilities_hospital.csv")
+    operating_beds = int(raw[raw["bsn_state_nm"].str.contains("영업")]["sickbd_cnt"].sum())
+    counted_beds = round(sum(facilities.count_by_dong("hospital").values()))
+    assert counted_beds == operating_beds  # 폐업분(약 1,394병상) 미포함
+    assert len(facilities.load_facilities("hospital")) < len(raw)  # 일부 행 제외됨
+    # 폐업 병원이 특정 동 지표를 튀게 만들지 않는지 — 모든 동 병상/1,000명이 상식적 상한 이내
+    for metrics in facilities.supply_by_dong().values():
+        assert metrics["hospital"] < 100  # 병상 100개/1,000명 이상은 데이터 이상 신호
 
 
 def test_dashboard_default():

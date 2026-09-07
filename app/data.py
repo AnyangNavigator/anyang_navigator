@@ -28,8 +28,12 @@ class DongInfo:
     households: int
 
 
-def _read_csv(name: str) -> pd.DataFrame:
+def read_csv(name: str) -> pd.DataFrame:
+    """`data/` 폴더의 CSV를 utf-8-sig로 읽는다. 다른 모듈(app.facilities 등)도 이걸 쓴다."""
     return pd.read_csv(DATA_DIR / name, encoding="utf-8-sig")
+
+
+_read_csv = read_csv  # 하위호환 별칭
 
 
 @lru_cache
