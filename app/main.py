@@ -169,6 +169,14 @@ def api_dong(dong_name: str):
     }
 
 
+@app.get("/api/report/_diag")
+def api_report_diag():
+    """LLM 연결 진단. 리포트가 규칙 기반 폴백으로만 나올 때 원인(HTTP 401/404,
+    BASE_URL 누락 등)을 배포 URL에서 바로 확인하기 위한 엔드포인트. API 키 값은
+    노출하지 않는다."""
+    return report.diagnose()
+
+
 @app.get("/api/report/{dong_name}")
 def api_report(dong_name: str):
     try:

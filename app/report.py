@@ -71,6 +71,53 @@ def _call_openai(prompt: str) -> str | None:
         return None
 
 
+def diagnose() -> dict:
+    """LLM 연결 상태를 진단한다. `_call_openai`가 오류를 삼켜서(#18) 배포 환경에서
+    "왜 폴백으로 떨어지는지" 알 수 없기 때문에, 여기서는 오류를 그대로 드러낸다.
+
+    API 키 값은 절대 반환하지 않는다(길이·앞자리만). 업스트림 에러 바디는 잘라서
+    반환하되, 키가 되돌아오는 경우는 없다(요청 헤더는 에코하지 않음).
+    """
+    api_key = os.environ.get("OPENAI_API_KEY")
+    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    env = {
+        "OPENAI_API_KEY": f"set (len={len(api_key)}, prefix={api_key[:3]}…)" if api_key else "MISSING",
+        "OPENAI_BASE_URL": base_url + ("  (기본값 — Groq/Gemini면 설정 필요)" if "OPENAI_BASE_URL" not in os.environ else ""),
+        "OPENAI_MODEL": model,
+    }
+    if not api_key:
+        return {"ok": False, "reason": "OPENAI_API_KEY 미설정 → 규칙 기반 폴백", "env": env}
+
+    body = json.dumps(
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": "1+1은? 숫자만 답하세요."}],
+            "temperature": 0,
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        f"{base_url}/chat/completions",
+        data=body,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        content = payload.get("choices", [{}])[0].get("message", {}).get("content")
+        if content:
+            return {"ok": True, "reason": "LLM 응답 정상", "sample": content.strip()[:80], "env": env}
+        return {"ok": False, "reason": "200 응답이지만 content가 비어 있음", "payload_keys": list(payload)[:8], "env": env}
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace")[:400]
+        return {"ok": False, "reason": f"HTTP {e.code} {e.reason}", "upstream_error": detail, "env": env}
+    except urllib.error.URLError as e:
+        return {"ok": False, "reason": f"네트워크 오류: {e.reason}", "env": env}
+    except Exception as e:  # noqa: BLE001 — 진단이므로 종류를 그대로 보여준다
+        return {"ok": False, "reason": f"{type(e).__name__}: {e}", "env": env}
+
+
 def _dong_prompt(dong_name: str, gu_stats: dict, density: dict) -> str:
     return (
         f"행정동: {dong_name} (소속 구: {density['gu']})\n\n"
