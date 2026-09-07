@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from . import data, report, simulator
+from . import data, gap, report, simulator
 from .chatbot import answer as chatbot_answer
 
 app = FastAPI(title="안양 균형발전 내비게이터")
@@ -68,6 +68,8 @@ def dashboard(request: Request, dong: str | None = None):
     density = data.get_facility_density(selected_dong)
     needed_gap = data.gu_needed_facility_gap()
     facility_trends = data.all_facility_trends()
+    supply_demand = gap.demand_supply_gaps()
+    dong_supply = gap.dong_supply(selected_dong)
 
     return templates.TemplateResponse(
         request,
@@ -80,6 +82,8 @@ def dashboard(request: Request, dong: str | None = None):
             "density": density,
             "needed_gap": needed_gap,
             "facility_trends": facility_trends,
+            "supply_demand": supply_demand,
+            "dong_supply": dong_supply,
             "naver_map_client_id": NAVER_MAP_CLIENT_ID,
         },
     )

@@ -52,11 +52,42 @@ def test_hospital_excludes_closed_beds():
         assert metrics["hospital"] < 100  # 병상 100개/1,000명 이상은 데이터 이상 신호
 
 
+def test_demand_supply_gaps_shape_and_signs():
+    from app import gap
+
+    rows = gap.demand_supply_gaps()
+    assert {r["facility"] for r in rows} == set(gap.SURVEY_TO_SUPPLY)
+    demand = data.gu_needed_facility_gap()
+    for r in rows:
+        # 수요격차는 data.gu_needed_facility_gap()와 같은 값이어야 한다.
+        assert r["demand_gap"] == round(demand[r["facility"]], 1)
+        # 공급격차 = 동안 − 만안
+        assert r["supply_gap"] == round(r["supply_dongan"] - r["supply_manan"], 3)
+        # "우선 검토"는 두 신호가 모두 양수일 때만
+        assert r["agrees"] == (r["demand_gap"] > 0 and r["supply_gap"] > 0)
+    # 일치 항목이 앞으로 정렬돼야 한다.
+    agrees = [r["agrees"] for r in rows]
+    assert agrees == sorted(agrees, reverse=True)
+
+
+def test_dong_supply_matches_facilities_module():
+    from app import facilities, gap
+
+    d = gap.dong_supply("안양1동")
+    assert set(d) == set(facilities.REGISTRY)
+    assert gap.dong_supply("존재하지않는동") is None
+    # 면적 지표만 1인당, 나머지는 1,000명당
+    assert d["park"]["per"] == "1인당" and d["parking"]["per"] == "1,000명당"
+
+
 def test_dashboard_default():
     res = client.get("/dashboard")
     assert res.status_code == 200
     assert "안양1동" in res.text
     assert "trendChart" in res.text
+    # 수요-공급 비교 섹션과 공급 커버리지 한계 문구가 렌더돼야 한다 (#39).
+    assert "수요 vs 공급" in res.text
+    assert "공공·등록 시설만" in res.text
 
 
 def test_all_facility_trends_matches_needed_facilities_columns():
