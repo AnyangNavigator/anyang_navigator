@@ -45,7 +45,7 @@ SYSTEM_PROMPT = (
 )
 
 
-def _call_openai(prompt: str) -> str | None:
+def _call_openai(prompt: str, system: str = SYSTEM_PROMPT) -> str | None:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         return None
@@ -53,7 +53,7 @@ def _call_openai(prompt: str) -> str | None:
         {
             "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.3,
