@@ -47,10 +47,12 @@
 │   ├── chatbot.py                         ← 규칙 기반 챗봇 (구조화 쿼리)
 │   └── templates/                         ← Jinja2 + Tailwind CDN 템플릿
 ├── data/
-│   ├── population_by_dong.csv             ← 31개 행정동별 인구·세대 (2025.12.31 기준)
-│   ├── survey_11_housing_satisfaction.csv ← 구 단위: 주택/기반시설/주차장 만족도
-│   ├── survey_12_needed_facilities.csv    ← 구 단위: 향후 필요 공공시설 (복수응답)
-│   └── survey_16-3_dissatisfaction_reasons.csv ← 구 단위: 지역 불만족 이유
+│   ├── SOURCES.md                         ← ★ 전체 데이터 출처·기준일·라이선스 표
+│   ├── population_by_dong.csv             ← 31개 행정동별 인구·세대 (행안부 주민등록인구통계, 2025.12.31)
+│   ├── population_by_age.csv              ← 행정동별 5세 단위 연령 인구
+│   ├── survey_1*.csv                      ← 구 단위: 2025 제11회 안양시 사회조사 (문항 11·12·16-3)
+│   ├── facilities_*.csv                   ← 시설 현황 6종 (공공데이터포털 표준데이터 / 경기데이터드림)
+│   └── anyang_dong_boundaries.geojson     ← 행정동 경계 (출처 교체 예정 → data/SOURCES.md)
 └── reference/                             ← 원본/배경 자료 (숫자 인용 시 data/ CSV 우선)
     ├── 안양균형발전내비게이터.docx          ← 최초 아이디어 요약
     ├── 안양균형발전내비게이터_제출서류초안.docx ← 제출서류 초안 (⚠️ 16-3 수치 오류 있음)
@@ -82,7 +84,7 @@ LLM 엔드포인트는 OpenAI 호환이면 무엇이든 씁니다. 무료로 쓰
 
 지도는 카카오맵 대신 **네이버 지도(NCP Maps) Dynamic Map**으로 구현했습니다. 기본 Client ID는 [main.py](app/main.py)에 하드코딩돼 있고(도메인 화이트리스트로 보호되는 공개 키라 노출돼도 무방), 배포 도메인이 바뀌면 `NAVER_MAP_CLIENT_ID` 환경변수로 덮어쓰면 됩니다. NCP 콘솔의 해당 애플리케이션에 **Dynamic Map**이 켜져 있어야 하고, Web 서비스 URL에 실제 접속 도메인(로컬 `http://127.0.0.1:8000` 포함)이 등록돼 있어야 합니다. (이전에는 동 이름을 좌표로 바꾸는 Geocoding도 필요했지만, 실제 행정동 경계 GeoJSON을 직접 서빙하는 방식으로 바뀌면서 더 이상 필요하지 않습니다.)
 
-행정동 경계 GeoJSON(`data/anyang_dong_boundaries.geojson`)은 [vuski/admdongkor](https://github.com/vuski/admdongkor) 공개 데이터에서 `scripts/extract_anyang_geojson.py`로 추출한 것입니다. 원본 소스가 갱신되어 동 이름이 바뀌면 이 스크립트를 다시 돌리면 됩니다.
+행정동 경계 GeoJSON(`data/anyang_dong_boundaries.geojson`)은 [vuski/admdongkor](https://github.com/vuski/admdongkor) 공개 데이터에서 `scripts/extract_anyang_geojson.py`로 추출한 것입니다(공식 vworld/SGIS 데이터로 교체 예정 — 이슈 #30). **전체 데이터 출처는 [`data/SOURCES.md`](data/SOURCES.md)** 참조.
 
 ## 배포 (Render)
 
