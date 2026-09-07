@@ -73,14 +73,18 @@ python -m uvicorn app.main:app --reload
 
 브라우저에서 http://127.0.0.1:8000/dashboard 접속. LLM 리포트는 `OPENAI_API_KEY` 환경변수가 있으면 실제 LLM을 호출하고, 없으면 구조화 데이터 기반 규칙 리포트로 자동 폴백합니다(항상 작동 보장).
 
+**현재 배포**(https://anyang-navigator.onrender.com)는 **Groq 무료 티어**를 연결해 실제 LLM으로 리포트·챗봇 답변을 생성합니다 (모델은 `OPENAI_MODEL` 환경변수, 현재 `openai/gpt-oss-120b`). 키·장애 시에는 규칙 기반 폴백으로 자동 전환됩니다.
+
 LLM 엔드포인트는 OpenAI 호환이면 무엇이든 씁니다. 무료로 쓰려면 `OPENAI_BASE_URL`·`OPENAI_MODEL`을 함께 지정하세요:
 
 | 서비스 | `OPENAI_BASE_URL` | `OPENAI_MODEL` 예 | 비고 |
 |---|---|---|---|
 | OpenAI (기본) | (미설정) | `gpt-4o-mini` | 선불 크레딧 필요 |
-| Groq | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` | 무료 티어, 카드 불필요 |
+| Groq | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b`, `openai/gpt-oss-20b` | 무료 티어, 카드 불필요 (모델 목록은 `/openai/v1/models`) |
 | Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.0-flash` | 무료 티어(rate limit) |
 | Upstage Solar | `https://api.upstage.ai/v1` | `solar-pro` | 가입 시 무료 크레딧 |
+
+> Groq는 모델 ID를 자주 바꿉니다. `llama-3.3-70b-versatile` 등 구 모델이 `model_not_found`면 위 `/models` 엔드포인트로 현재 목록을 확인하세요. 배포에서 LLM이 폴백으로만 나오면 `/api/report/_diag`가 원인(HTTP 401/404, `OPENAI_BASE_URL` 누락 등)을 알려줍니다.
 
 지도는 카카오맵 대신 **네이버 지도(NCP Maps) Dynamic Map**으로 구현했습니다. 기본 Client ID는 [main.py](app/main.py)에 하드코딩돼 있고(도메인 화이트리스트로 보호되는 공개 키라 노출돼도 무방), 배포 도메인이 바뀌면 `NAVER_MAP_CLIENT_ID` 환경변수로 덮어쓰면 됩니다. NCP 콘솔의 해당 애플리케이션에 **Dynamic Map**이 켜져 있어야 하고, Web 서비스 URL에 실제 접속 도메인(로컬 `http://127.0.0.1:8000` 포함)이 등록돼 있어야 합니다. (이전에는 동 이름을 좌표로 바꾸는 Geocoding도 필요했지만, 실제 행정동 경계 GeoJSON을 직접 서빙하는 방식으로 바뀌면서 더 이상 필요하지 않습니다.)
 
