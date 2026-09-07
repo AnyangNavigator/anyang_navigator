@@ -2,6 +2,8 @@
 
 「2026년 안양시 공공데이터・AI 활용 대학생 경진대회」 출품작. 접수 마감 **2026-09-21**.
 
+🔗 **배포 URL: https://anyang-navigator.onrender.com** (공개검증 기간 중 유지 — 내리지 말 것)
+
 팀에 처음 합류했다면 [ONBOARDING.md](ONBOARDING.md)부터, 협업 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
 
 ## 프로젝트 한 줄 요약
@@ -84,7 +86,11 @@ LLM 엔드포인트는 OpenAI 호환이면 무엇이든 씁니다. 무료로 쓰
 
 ## 배포 (Render)
 
+**현재 배포됨: https://anyang-navigator.onrender.com** — `main`에 머지되면 자동 재배포(`autoDeploy: true`).
+
 배포 설정은 `render.yaml`(Blueprint) + `.python-version`/`PYTHON_VERSION`(Python 3.12.8 고정)으로 저장소에 포함돼 있습니다.
+
+### 처음부터 다시 배포한다면
 
 1. [render.com](https://render.com) → **New → Blueprint** → 이 저장소 연결 → `render.yaml`이 자동 인식됨
 2. 서비스 환경변수 설정 (Render 대시보드):
@@ -105,6 +111,8 @@ LLM 엔드포인트는 OpenAI 호환이면 무엇이든 씁니다. 무료로 쓰
 - [x] 5순위(여력) 일부: 지도 시각화 — 네이버 지도에 31개 행정동 실제 경계 폴리곤을 인구 규모 5단계 choropleth로 표시(범례 포함), 클릭 시 해당 동으로 이동
 - [x] 5순위(여력) 나머지: 예산 대비 효과 스코어링 — `/simulator` "여러 시나리오 비교" 섹션에서 1억원당 예상 격차 감소폭으로 순위화
 
-기능 개발은 5순위까지 전부 완료. 다음으로 손댈 만한 것: 배포(Render/Railway) + 공개검증용 URL 유지.
+- [x] 배포: Render에 상시 서비스 (https://anyang-navigator.onrender.com), `main` 머지 시 자동 재배포
+
+기능 개발 5순위 + 배포까지 완료. 이후 개선분(감사 반영, 데이터 확충, /about 등)은 PR → `main` 머지 → 자동 재배포로 반영됨.
 
 마감(9/21)까지 실제 작동하는 시제품이 반드시 있어야 함 — 완벽함보다 "핵심 기능이 오류 없이 돌아가는 것"을 최우선으로.
