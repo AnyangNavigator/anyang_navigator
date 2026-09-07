@@ -9,9 +9,34 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app import data, report, simulator
+from app import data, facilities, geo, report, simulator
 
 client = TestClient(app)
+
+
+def test_geo_point_maps_to_known_dong():
+    # 안양역 인근 좌표는 안양1동으로 매핑돼야 한다.
+    assert geo.dong_for_point(126.9226, 37.4018) == "안양1동"
+    # 안양시 밖(서울 시청)은 None.
+    assert geo.dong_for_point(126.9780, 37.5665) is None
+    assert geo.dong_for_point(None, None) is None
+
+
+def test_facilities_registry_loads_and_maps():
+    for kind in facilities.REGISTRY:
+        rows = facilities.load_facilities(kind)
+        assert rows, f"{kind} 로드 실패"
+        # 좌표→동 매핑 실패율이 10% 미만이어야 한다 (데이터 품질 가드).
+        assert facilities.unmapped_ratio(kind) < 0.10
+
+
+def test_supply_by_dong_covers_all_31_dong():
+    supply = facilities.supply_by_dong()
+    assert set(supply) == {d.dong for d in data.list_dong()}
+    # 모든 동에 6개 시설 종류 지표가 있어야 한다 (없으면 0).
+    for dong, metrics in supply.items():
+        assert set(metrics) == set(facilities.REGISTRY)
+        assert all(v >= 0 for v in metrics.values())
 
 
 def test_dashboard_default():
