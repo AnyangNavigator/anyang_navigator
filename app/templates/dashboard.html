@@ -66,6 +66,35 @@
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-1">행정동 유형 군집분석 (비지도 학습)</h2>
+  <p class="text-xs text-slate-500 mb-3">
+    인구 구조(고령·유소년·생산연령비, 평균 가구원수)와 공공시설 공급 6종을 표준화해 KMeans로 31개 동을 유형화했습니다.
+    군집 수 <strong>k={{ clustering.k }}</strong>는 실루엣 점수({{ clustering.silhouette }})로 자동 선택했습니다.
+    <span class="text-slate-400">군집은 <strong>유형 분류일 뿐 우열이 아닙니다.</strong></span>
+  </p>
+  <div class="grid sm:grid-cols-3 gap-3">
+    {% for c in clustering.clusters %}
+    <div class="border border-slate-200 rounded-lg p-3">
+      <div class="flex items-baseline justify-between">
+        <span class="text-sm font-semibold text-slate-700">군집 {{ c.id }}</span>
+        <span class="text-xs text-slate-400">{{ c.size }}개 동</span>
+      </div>
+      <p class="text-xs text-blue-700 mt-1">{{ c.traits | join(" · ") }}</p>
+      <p class="text-xs text-slate-500 mt-1">
+        {% for gu, n in c.gu_mix.items() %}{{ gu }} {{ n }}{% if not loop.last %} / {% endif %}{% endfor %}
+      </p>
+      <p class="text-xs text-slate-400 mt-2 leading-relaxed">{{ c.dongs | join(", ") }}</p>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="text-xs text-slate-500 mt-3 border-t border-slate-100 pt-3">
+    <strong>읽는 법.</strong> 군집이 만안구/동안구 경계와 <em>정확히 일치하지 않습니다</em> — 일부 만안구 동이 신도시형 군집에, 일부 동안구 동이 원도심형 군집에 들어갑니다.
+    행정구역 이분법보다 <strong>실제 인구·시설 프로필이 만드는 유형</strong>이 정책 단위로 더 적절할 수 있음을 시사합니다.
+    산출 로직: <code>app/cluster.py</code> (<code>random_state</code> 고정 — 재현 가능).
+  </p>
+</section>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
   <div class="flex items-center justify-between mb-1">
     <h2 class="text-sm font-semibold text-slate-500">행정동 지도</h2>
     <select id="mapMetric" class="text-xs border border-slate-300 rounded-md px-2 py-1">
