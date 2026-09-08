@@ -311,6 +311,35 @@ def test_chatbot_uses_llm_with_structured_context(monkeypatch):
     assert "구 단위" in captured["system"]
 
 
+def test_chatbot_falls_back_when_llm_call_fails(monkeypatch):
+    # 키는 있는데 LLM 호출이 실패(타임아웃·API 오류 등)해 None이 오는 경로.
+    # _call_openai의 예외 처리는 report.py 쪽에서 검증되지만, chatbot.answer()가
+    # None을 받아 규칙 기반으로 내려가는지는 따로 확인돼 있지 않았다 (#46).
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    from app import chatbot
+
+    monkeypatch.setattr(chatbot, "_call_openai", lambda *a, **k: None)
+    ans = chatbot.answer("주차시설은 어때?", "안양1동")
+    assert "만안구 41.7%" in ans and "동안구 26.5%" in ans
+
+
+def test_chatbot_context_and_rule_answer_share_gap_numbers(monkeypatch):
+    # 같은 시설에 대해 LLM 컨텍스트와 규칙 기반 답변이 동일한 수치를 써야 한다.
+    # 계산이 두 곳에 중복돼 있으면 한쪽만 바뀌어 어긋날 수 있다 (#45).
+    from app import chatbot
+
+    manan, dongan, gap = chatbot._facility_gap("공영주차시설")
+    ctx = chatbot._build_context("주차시설은 어때?", "안양1동", "공영주차시설")
+    needed = ctx["문의 시설 필요도(구 단위, %)"]
+    assert (needed["만안구"], needed["동안구"]) == (manan, dongan)
+    assert needed["격차(만안구-동안구, %p)"] == gap
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    ans = chatbot.answer("주차시설은 어때?", "안양1동")
+    assert f"만안구 {manan}%" in ans and f"동안구 {dongan}%" in ans
+    assert f"{gap:+.1f}%p" in ans
+
+
 def test_api_dong_boundaries():
     res = client.get("/api/dong-boundaries")
     assert res.status_code == 200
