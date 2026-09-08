@@ -92,6 +92,35 @@ def test_dong_supply_matches_facilities_module():
     assert d["park"]["per"] == "1인당" and d["parking"]["per"] == "1,000명당"
 
 
+def test_clustering_covers_all_dong_and_is_reproducible():
+    from app import cluster
+
+    a = cluster.cluster_dong()
+    assert 3 <= a["k"] <= 6
+    assert set(a["dong_to_cluster"]) == {d.dong for d in data.list_dong()}
+    assert sum(c["size"] for c in a["clusters"]) == 31
+    assert len(a["clusters"]) == a["k"]
+    for c in a["clusters"]:
+        assert c["traits"] and c["dongs"]
+    # random_state 고정 → 같은 라벨링이 재현돼야 한다.
+    cluster.cluster_dong.cache_clear()
+    b = cluster.cluster_dong()
+    assert a["dong_to_cluster"] == b["dong_to_cluster"]
+
+
+def test_cluster_features_are_ratios_not_raw_counts():
+    from app import cluster
+
+    frame = cluster.feature_frame()
+    assert len(frame) == 31
+    # 비율 변수는 0~1 범위여야 한다 (규모 편향 방지).
+    for col in ("senior_ratio", "youth_ratio", "working_ratio"):
+        assert frame[col].between(0, 1).all()
+    # 세 비율의 합은 1 (반올림 오차 허용).
+    total = frame["senior_ratio"] + frame["youth_ratio"] + frame["working_ratio"]
+    assert total.between(0.99, 1.01).all()
+
+
 def test_dashboard_default():
     res = client.get("/dashboard")
     assert res.status_code == 200
@@ -100,6 +129,9 @@ def test_dashboard_default():
     # 수요-공급 비교 섹션과 공급 커버리지 한계 문구가 렌더돼야 한다 (#39).
     assert "수요 vs 공급" in res.text
     assert "공공·등록 시설만" in res.text
+    # 군집분석 섹션과 "우열이 아님" 경고가 렌더돼야 한다 (#29).
+    assert "행정동 유형 군집분석" in res.text
+    assert "우열이 아닙니다" in res.text
 
 
 def test_all_facility_trends_matches_needed_facilities_columns():
