@@ -95,11 +95,22 @@
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
-  <h2 class="text-sm font-semibold text-slate-500 mb-1">행정동 지도</h2>
-  <p class="text-xs text-slate-400 mb-3">색상 = 행정동 인구 규모 5단계(choropleth, 진할수록 인구 많음). 클릭하면 해당 동으로 이동합니다.</p>
+  <div class="flex items-center justify-between mb-1">
+    <h2 class="text-sm font-semibold text-slate-500">행정동 지도</h2>
+    <select id="mapMetric" class="text-xs border border-slate-300 rounded-md px-2 py-1">
+      {% for m in map_metrics %}
+      <option value="{{ m.key }}">{{ m.label }}{% if m.per %} ({{ m.unit }}/{{ m.per }}){% endif %}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <p class="text-xs text-slate-400 mb-3">색상 = 선택한 지표의 5분위(choropleth, 진할수록 값이 큼). 클릭하면 해당 동으로 이동하고, 마우스를 올리면 값이 표시됩니다.</p>
   <div id="map" style="width:100%;height:420px;border-radius:0.5rem;background:#f1f5f9;"></div>
-  <div id="mapLegend" class="flex items-center flex-wrap gap-3 mt-3 text-xs text-slate-500"></div>
+  <div class="flex items-center justify-between gap-3 mt-3">
+    <div id="mapLegend" class="flex items-center flex-wrap gap-3 text-xs text-slate-500"></div>
+    <p id="mapHover" class="text-xs text-slate-600 font-medium whitespace-nowrap"></p>
+  </div>
   <p id="mapStatus" class="text-xs text-slate-400 mt-2"></p>
+  <p class="text-xs text-slate-400 mt-1">※ 공급 지표는 <strong>인구 기준으로 정규화</strong>했습니다 — 개소·병상은 1,000명당, 공원은 1인당 면적(㎡). 동 인구 규모가 커 보이는 착시를 막기 위함입니다(<code>docs/METRICS.md</code>). 공공·등록 시설만 집계하며 민간 부설주차장·의원 등은 빠져 있습니다.</p>
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
@@ -238,12 +249,21 @@ function geometryToPolygonPathsList(geometry) {
   return [];
 }
 
-function renderLegend(scale) {
+const MAP_METRICS = {{ map_metrics | tojson }};
+
+function renderLegend(scale, metric) {
   const legend = document.getElementById('mapLegend');
   if (!legend) return;
   const swatch = color => `<span style="width:14px;height:14px;background:${color};display:inline-block;border-radius:2px;border:1px solid #cbd5e1;vertical-align:-2px;"></span>`;
   legend.innerHTML =
-    `<span>인구 적음 ${scale.colors.map(swatch).join('')} 인구 많음</span>`;
+    `<span>${metric.low} ${scale.colors.map(swatch).join('')} ${metric.high}</span>`;
+}
+
+// 지표별 표시 문자열. 값이 없는 동(데이터 미매핑)은 '데이터 없음'.
+function formatMetricValue(value, metric) {
+  if (value == null) return '데이터 없음';
+  const num = metric.key === 'total_population' ? value.toLocaleString() : value;
+  return metric.per ? `${num} ${metric.unit}/${metric.per}` : `${num}${metric.unit}`;
 }
 
 async function initNaverMap() {
@@ -267,22 +287,23 @@ async function initNaverMap() {
     zoom: 12,
   });
   const bounds = new naver.maps.LatLngBounds();
-  const scale = computeQuantileScale(
-    geojson.features.map(f => f.properties.total_population),
-    CHOROPLETH_COLORS,
-  );
+  const hover = document.getElementById('mapHover');
+
+  // 폴리곤은 한 번만 만들고, 지표를 바꿀 때 색만 다시 칠한다(재생성 없음).
+  const shapes = [];  // { dong, props, polygons: [...] }
 
   geojson.features.forEach(feature => {
-    const { dong, total_population } = feature.properties;
+    const props = feature.properties;
+    const dong = props.dong;
     const isSelected = dong === selectedDong;
-    const fillColor = colorForValue(total_population, scale);
+    const polygons = [];
 
     geometryToPolygonPathsList(feature.geometry).forEach(paths => {
       paths.forEach(ring => ring.forEach(latlng => bounds.extend(latlng)));
       const polygon = new naver.maps.Polygon({
         map,
         paths,
-        fillColor,
+        fillColor: '#e2e8f0',
         fillOpacity: isSelected ? 0.9 : 0.75,
         strokeColor: isSelected ? '#0f172a' : '#ffffff',
         strokeWeight: isSelected ? 3 : 1,
@@ -291,14 +312,50 @@ async function initNaverMap() {
       naver.maps.Event.addListener(polygon, 'click', () => {
         window.location.href = `/dashboard?dong=${encodeURIComponent(dong)}`;
       });
-      naver.maps.Event.addListener(polygon, 'mouseover', () => polygon.setOptions('fillOpacity', 0.9));
-      naver.maps.Event.addListener(polygon, 'mouseout', () => polygon.setOptions('fillOpacity', isSelected ? 0.9 : 0.75));
+      naver.maps.Event.addListener(polygon, 'mouseover', () => {
+        polygon.setOptions('fillOpacity', 0.9);
+        const metric = currentMetric();
+        hover.textContent = `${dong} — ${metric.label} ${formatMetricValue(props[metric.key], metric)}`;
+      });
+      naver.maps.Event.addListener(polygon, 'mouseout', () => {
+        polygon.setOptions('fillOpacity', isSelected ? 0.9 : 0.75);
+        hover.textContent = '';
+      });
+      polygons.push(polygon);
     });
+    shapes.push({ dong, props, polygons });
   });
 
+  function currentMetric() {
+    const key = document.getElementById('mapMetric').value;
+    return MAP_METRICS.find(m => m.key === key) || MAP_METRICS[0];
+  }
+
+  function applyMetric() {
+    const metric = currentMetric();
+    const scale = computeQuantileScale(shapes.map(s => s.props[metric.key]), CHOROPLETH_COLORS);
+    // 지도 SDK가 도중에 죽어도(키 401 등) 범례·상태는 갱신되도록 색칠만 격리한다.
+    let repainted = true;
+    try {
+      shapes.forEach(s => {
+        const color = colorForValue(s.props[metric.key], scale);
+        s.polygons.forEach(p => p.setOptions('fillColor', color));
+      });
+    } catch (e) {
+      repainted = false;
+      console.error('지도 색상을 갱신하지 못했습니다:', e);
+    }
+    renderLegend(scale, metric);
+    const missing = shapes.filter(s => s.props[metric.key] == null).length;
+    mapStatus.textContent =
+      `${shapes.length}개 행정동 · 지표: ${metric.label}` +
+      (missing ? ` (데이터 없는 동 ${missing}개는 회색)` : '') +
+      (repainted ? '' : ' — 지도 색상 갱신 실패(지도 SDK 오류)');
+  }
+
   map.fitBounds(bounds);
-  renderLegend(scale);
-  mapStatus.textContent = `${geojson.features.length}개 행정동 경계 표시 완료.`;
+  applyMetric();
+  document.getElementById('mapMetric').addEventListener('change', applyMetric);
 }
 
 initNaverMap();
