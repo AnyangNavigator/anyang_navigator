@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from . import data, gap, report, simulator
+from . import data, facilities, gap, report, simulator
 from .chatbot import answer as chatbot_answer
 
 app = FastAPI(title="안양 균형발전 내비게이터")
@@ -70,6 +70,7 @@ def dashboard(request: Request, dong: str | None = None):
     facility_trends = data.all_facility_trends()
     supply_demand = gap.demand_supply_gaps()
     dong_supply = gap.dong_supply(selected_dong)
+    map_metrics = facilities.metric_catalog()
 
     return templates.TemplateResponse(
         request,
@@ -84,6 +85,7 @@ def dashboard(request: Request, dong: str | None = None):
             "facility_trends": facility_trends,
             "supply_demand": supply_demand,
             "dong_supply": dong_supply,
+            "map_metrics": map_metrics,
             "naver_map_client_id": NAVER_MAP_CLIENT_ID,
         },
     )
@@ -211,8 +213,12 @@ def simulator_brief(
 
 @app.get("/api/dong-boundaries")
 def api_dong_boundaries():
-    """안양시 31개 행정동 경계 GeoJSON(+동별 인구) — 대시보드 choropleth 지도용."""
-    return data.dong_boundaries_with_population()
+    """안양시 31개 행정동 경계 GeoJSON — 대시보드 choropleth 지도용.
+
+    properties에 동별 인구(`total_population`)와 공급 지표(`supply_*`, #37 규격)가
+    함께 실린다. 지도 지표 토글이 이 한 번의 응답으로 레이어를 바꾼다.
+    """
+    return facilities.boundaries_with_metrics()
 
 
 @app.get("/api/dong/{dong_name}")
