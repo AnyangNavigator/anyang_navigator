@@ -245,11 +245,28 @@ def test_coef_basis_covers_every_facility():
     assert all(simulator.UNIT_COST_BASIS.values())
 
 
+def test_coef_basis_superlatives_match_real_rankings():
+    # /about에 노출되는 근거 문구의 "최대/최상위" 주장이 실제 순위와 일치해야 한다
+    # (#34 리뷰: 사실과 다른 최상급 표현이 심사 리스크).
+    need = data.load_needed_facilities().loc["안양시 전체"].to_dict()
+    gaps = data.gu_needed_facility_gap()
+    top_need = max(need, key=need.get)
+    top_gap = max(gaps, key=gaps.get)
+    for facility, basis in simulator.COEF_BASIS.items():
+        if "필요도 최상위" in basis or "필요도 1위" in basis:
+            assert facility == top_need, f"{facility}: 필요도 1위는 {top_need}"
+        if "구 격차 최대" in basis or "구 격차 1위" in basis:
+            assert facility == top_gap, f"{facility}: 구 격차 1위는 {top_gap}"
+    # "구 격차 최대"를 주장하는 항목은 최대 하나여야 한다 (한 페이지 내 모순 방지).
+    assert sum("구 격차 최대" in b for b in simulator.COEF_BASIS.values()) <= 1
+
+
 def test_coef_values_within_trend_envelope():
     # 접근 A 상한: 큰 충격 없이 2년간 필요도 변동은 대체로 ±3%p 수준.
     # 1개소당 계수는 그 절반(약 2.0%p)을 넘지 않아야 한다 (#34 docs/COEFFICIENTS.md).
     assert max(simulator.FACILITY_IMPROVEMENT_COEF.values()) <= 2.0
-    # 상대 크기 규칙: 필요도 최상위(공영주차) 계수가 최하위(도서관)보다 커야 한다.
+    # 상대 크기 규칙: 구 격차 최대(보건의료)·필요도 상위(공영주차) 계수가
+    # 필요도 최하위(도서관)보다 커야 한다.
     assert (
         simulator.FACILITY_IMPROVEMENT_COEF["공영주차시설"]
         > simulator.FACILITY_IMPROVEMENT_COEF["도서관"]
