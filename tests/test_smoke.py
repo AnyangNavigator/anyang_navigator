@@ -323,6 +323,42 @@ def test_api_dong_boundaries():
     assert all(f["properties"]["total_population"] is not None for f in body["features"])
 
 
+def test_api_dong_boundaries_carries_supply_metrics():
+    # 지도 지표 토글(#38)이 한 번의 응답으로 레이어를 바꾸므로, 경계 GeoJSON에
+    # 공급 지표가 전부 실려 있어야 한다.
+    from app import facilities
+
+    body = client.get("/api/dong-boundaries").json()
+    props = {f["properties"]["dong"]: f["properties"] for f in body["features"]}
+    supply = facilities.supply_by_dong()
+
+    for kind in facilities.REGISTRY:
+        key = f"supply_{kind}"
+        assert all(key in p for p in props.values()), f"{key} 누락"
+    # 값이 supply_by_dong()과 일치해야 한다 (지도와 카드가 다른 숫자를 보이면 안 됨).
+    assert props["안양1동"]["supply_parking"] == supply["안양1동"]["parking"]
+
+
+def test_map_metric_catalog_matches_registry():
+    from app import facilities
+
+    catalog = facilities.metric_catalog()
+    keys = [m["key"] for m in catalog]
+    assert keys[0] == "total_population"  # 기본 레이어는 인구
+    assert set(keys[1:]) == {f"supply_{k}" for k in facilities.REGISTRY}
+    # 공원만 1인당 면적, 나머지는 1,000명당 (docs/METRICS.md 규격)
+    per = {m["key"]: m["per"] for m in catalog}
+    assert per["supply_park"] == "1인당"
+    assert per["supply_parking"] == "1,000명당"
+
+
+def test_dashboard_renders_map_metric_toggle():
+    res = client.get("/dashboard")
+    assert res.status_code == 200
+    assert 'id="mapMetric"' in res.text
+    assert "supply_parking" in res.text  # 드롭다운 옵션 + MAP_METRICS 주입
+
+
 def test_api_simulate():
     res = client.post(
         "/api/simulate",
