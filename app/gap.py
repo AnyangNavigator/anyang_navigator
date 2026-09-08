@@ -52,7 +52,9 @@ def demand_supply_gaps() -> list[dict]:
 
     - `demand_gap` = 만안 필요도 − 동안 필요도 (%p). 양수 = 만안이 더 목마름.
     - `supply_gap` = 동안 공급 − 만안 공급. 양수 = 만안 공급이 더 적음.
-    - 둘 다 양수면 "수요는 높은데 공급은 적다" → `agrees=True` (우선 검토 대상).
+    - **부호가 같으면** 한 구가 "수요는 높은데 공급은 적다" → `agrees=True`.
+      만안·동안 어느 쪽이든 성립하므로(균형발전은 양방향) 부호 일치로 판정하고,
+      `disadvantaged`에 그 구를 담는다.
     """
     demand = data.gu_needed_facility_gap()
     supply = _supply_by_gu()
@@ -62,6 +64,7 @@ def demand_supply_gaps() -> list[dict]:
         dongan = supply["동안구"].get(kind, 0.0)
         demand_gap = round(demand[survey_name], 1)
         supply_gap = round(dongan - manan, 3)
+        agrees = (demand_gap > 0 and supply_gap > 0) or (demand_gap < 0 and supply_gap < 0)
         rows.append(
             {
                 "facility": survey_name,
@@ -72,15 +75,22 @@ def demand_supply_gaps() -> list[dict]:
                 "supply_manan": manan,
                 "supply_dongan": dongan,
                 "supply_gap": supply_gap,
-                "agrees": demand_gap > 0 and supply_gap > 0,
+                "agrees": agrees,
+                # agrees일 때만 의미: 수요·공급 두 신호가 모두 불리한 구.
+                "disadvantaged": ("만안구" if demand_gap > 0 else "동안구") if agrees else None,
             }
         )
-    rows.sort(key=lambda r: (-r["agrees"], -r["demand_gap"]))
+    # 일치 항목을 앞으로, 그 안에서는 수요격차 절대값이 큰 순.
+    rows.sort(key=lambda r: (-r["agrees"], -abs(r["demand_gap"])))
     return rows
 
 
 def dong_supply(dong_name: str) -> dict[str, dict] | None:
-    """동 하나의 공급 지표 — 대시보드 동 단위 카드용. 값 + 라벨/단위를 함께 준다."""
+    """동 하나의 공급 지표 — 대시보드 동 단위 카드용. 값 + 라벨/단위를 함께 준다.
+
+    `REGISTRY` 전체(6종, 약국 포함)를 돌려준다. 수요-공급 비교표(`demand_supply_gaps`)는
+    사회조사 문항과 대응되는 5종만 쓰지만, 동 카드는 보유한 공급 정보를 모두 보여준다.
+    """
     supply = facilities.supply_by_dong().get(dong_name)
     if supply is None:
         return None

@@ -58,13 +58,25 @@ def test_demand_supply_gaps_shape_and_signs():
     rows = gap.demand_supply_gaps()
     assert {r["facility"] for r in rows} == set(gap.SURVEY_TO_SUPPLY)
     demand = data.gu_needed_facility_gap()
+    by_facility = {r["facility"]: r for r in rows}
     for r in rows:
         # 수요격차는 data.gu_needed_facility_gap()와 같은 값이어야 한다.
         assert r["demand_gap"] == round(demand[r["facility"]], 1)
         # 공급격차 = 동안 − 만안
         assert r["supply_gap"] == round(r["supply_dongan"] - r["supply_manan"], 3)
-        # "우선 검토"는 두 신호가 모두 양수일 때만
-        assert r["agrees"] == (r["demand_gap"] > 0 and r["supply_gap"] > 0)
+        # "우선 검토" = 두 격차의 부호가 같을 때 (만안·동안 양방향, #50 리뷰)
+        assert r["agrees"] == (
+            (r["demand_gap"] > 0 and r["supply_gap"] > 0)
+            or (r["demand_gap"] < 0 and r["supply_gap"] < 0)
+        )
+        if r["agrees"]:
+            assert r["disadvantaged"] == ("만안구" if r["demand_gap"] > 0 else "동안구")
+        else:
+            assert r["disadvantaged"] is None
+    # 도서관: 만안 3.8 < 동안 7.8 수요, 만안 공급도 동안보다 큼 → 둘 다 음수 → 동안구 일치
+    lib = by_facility["도서관"]
+    assert lib["demand_gap"] < 0 and lib["supply_gap"] < 0
+    assert lib["agrees"] is True and lib["disadvantaged"] == "동안구"
     # 일치 항목이 앞으로 정렬돼야 한다.
     agrees = [r["agrees"] for r in rows]
     assert agrees == sorted(agrees, reverse=True)
