@@ -481,6 +481,36 @@ def test_api_dong_boundaries():
     assert all(f["properties"]["total_population"] is not None for f in body["features"])
 
 
+def test_api_dong_boundaries_is_cacheable():
+    # ~300KB를 대시보드 로드마다 재요청하던 것을 캐시/304로 재사용 (#59).
+    res = client.get("/api/dong-boundaries")
+    assert "max-age=86400" in res.headers["cache-control"]
+    etag = res.headers["etag"]
+    assert etag
+    # 같은 ETag로 재요청하면 304 (본문 없음)
+    res304 = client.get("/api/dong-boundaries", headers={"If-None-Match": etag})
+    assert res304.status_code == 304
+    assert not res304.content
+
+
+def test_dong_boundaries_geojson_precision_is_trimmed():
+    # 좌표를 소수점 6자리로 줄여 파일·응답 크기를 절반 이하로 (#59).
+    import json
+    import pathlib
+
+    path = pathlib.Path(__file__).resolve().parent.parent / "data" / "anyang_dong_boundaries.geojson"
+    assert path.stat().st_size < 360_000  # 원본 540KB -> ~300KB
+    gj = json.loads(path.read_text(encoding="utf-8"))
+    for feat in gj["features"]:
+        polys = feat["geometry"]["coordinates"]
+        if feat["geometry"]["type"] == "Polygon":
+            polys = [polys]
+        for poly in polys:
+            for ring in poly:
+                for lng, lat in ring:
+                    assert round(lng, 6) == lng and round(lat, 6) == lat
+
+
 def test_api_dong_boundaries_carries_supply_metrics():
     # 지도 지표 토글(#38)이 한 번의 응답으로 레이어를 바꾸므로, 경계 GeoJSON에
     # 공급 지표가 전부 실려 있어야 한다.
