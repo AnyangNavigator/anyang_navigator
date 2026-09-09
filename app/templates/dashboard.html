@@ -29,6 +29,16 @@
       <dt class="text-slate-500">세대수</dt><dd class="font-semibold">{{ "{:,}".format(density.households) }}세대</dd>
       <dt class="text-slate-500">평균 가구원수</dt><dd class="font-semibold">{{ density.avg_household_size }}명</dd>
     </dl>
+    {% if dong_supply %}
+    <p class="text-xs text-slate-500 font-semibold mt-4 mb-2">공공시설 공급 (인구 기준)</p>
+    <dl class="grid grid-cols-2 gap-y-2 text-sm">
+      {% for kind, s in dong_supply.items() %}
+      <dt class="text-slate-500">{{ s.label }}</dt>
+      <dd class="font-semibold">{{ s.value }} <span class="text-xs font-normal text-slate-400">{{ s.unit }}/{{ s.per }}</span></dd>
+      {% endfor %}
+    </dl>
+    <p class="text-xs text-slate-400 mt-2">※ 공공·등록 시설만 집계 (민간 부설주차장·의원 등 제외)</p>
+    {% endif %}
   </section>
 
   <section class="bg-white rounded-xl border border-slate-200 p-5">
@@ -50,6 +60,47 @@
 <section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
   <h2 class="text-sm font-semibold text-slate-500 mb-4">향후 필요 시설 격차 (만안구 vs 동안구, %p)</h2>
   <canvas id="gapChart" height="90"></canvas>
+</section>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-1">수요 vs 공급 — 두 신호를 나란히</h2>
+  <p class="text-xs text-slate-500 mb-3">
+    사회조사 <strong>수요격차</strong>(만안−동안 필요도 %p)와 실제 <strong>공급격차</strong>(동안−만안 공급량)를 함께 봅니다.
+    두 격차의 <strong>부호가 같으면</strong> 한 구가 "수요는 높은데 공급은 적다" → <span class="text-red-600 font-semibold">우선 검토</span> 대상이며, 어느 구인지 함께 표시합니다(균형발전은 양방향).
+  </p>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="text-left text-xs text-slate-500 border-b border-slate-200">
+          <th class="py-2 pr-3">시설</th>
+          <th class="py-2 pr-3">수요격차 (%p)</th>
+          <th class="py-2 pr-3">공급 — 만안</th>
+          <th class="py-2 pr-3">공급 — 동안</th>
+          <th class="py-2 pr-3">공급격차</th>
+          <th class="py-2 pr-3">판정</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for r in supply_demand %}
+        <tr>
+          <td class="py-2 pr-3 whitespace-nowrap">{{ r.facility }}</td>
+          <td class="py-2 pr-3 {% if r.demand_gap > 0 %}text-red-600 font-semibold{% endif %}">{{ "%+.1f"|format(r.demand_gap) }}</td>
+          <td class="py-2 pr-3">{{ r.supply_manan }} <span class="text-xs text-slate-400">{{ r.unit }}</span></td>
+          <td class="py-2 pr-3">{{ r.supply_dongan }} <span class="text-xs text-slate-400">{{ r.unit }}</span></td>
+          <td class="py-2 pr-3 {% if r.supply_gap > 0 %}text-red-600 font-semibold{% endif %}">{{ "%+.3f"|format(r.supply_gap) }}</td>
+          <td class="py-2 pr-3 text-xs whitespace-nowrap">
+            {% if r.agrees %}<span class="text-red-600 font-semibold">우선 검토 ({{ r.disadvantaged }})</span>
+            {% else %}<span class="text-slate-400">신호 불일치</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="text-xs text-slate-500 mt-3 border-t border-slate-100 pt-3 space-y-1">
+    <p><strong>읽는 법.</strong> 수요가 크게 벌어진 시설(공영주차·보건의료·공원)에서는 오히려 <em>공급이 그 구에 더 많습니다</em> — 만안구는 공공시설 개소수·면적이 적지 않은데도 필요도 응답이 높습니다. 이는 <strong>시설의 양보다 질·접근성·노후도</strong>가 체감 부족의 원인일 가능성을 시사합니다(공급밀도–필요도 순위상관 ρ ≈ +0.59, 기대와 반대 부호 — <code>scripts/analyze_coefficients.py</code>). 두 신호가 일치하는 건 어린이집(만안구)·도서관(동안구)뿐입니다.</p>
+    <p class="text-slate-400">※ 공급은 <strong>공공·등록 시설만</strong> 집계합니다. 아파트 부설주차장·민간 의원 등 민간 공급이 빠져 있어 민간 공급이 두터운 신도시(동안구)가 과소평가될 수 있습니다. 사회복지·문화예술·체육시설은 공급 데이터 미확보로 제외됐습니다.</p>
+  </div>
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
