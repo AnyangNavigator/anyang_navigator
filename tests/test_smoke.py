@@ -23,11 +23,36 @@ def test_geo_point_maps_to_known_dong():
 
 
 def test_facilities_registry_loads_and_maps():
-    for kind in facilities.REGISTRY:
+    for kind, spec in facilities.REGISTRY.items():
         rows = facilities.load_facilities(kind)
         assert rows, f"{kind} 로드 실패"
-        # 좌표→동 매핑 실패율이 10% 미만이어야 한다 (데이터 품질 가드).
-        assert facilities.unmapped_ratio(kind) < 0.10
+        # 좌표→동 매핑 실패율 가드. 원본 CSV의 좌표 충실도가 종류마다 달라
+        # 상한을 spec에 둔다(기본 10%). 상한을 올릴 땐 spec에 이유를 남긴다.
+        ratio = facilities.unmapped_ratio(kind)
+        assert ratio < spec.max_unmapped, f"{kind} 매핑 실패율 {ratio:.1%} >= {spec.max_unmapped:.0%}"
+
+
+def test_large_store_and_market_do_not_double_count():
+    # 대규모점포 대장에는 전통시장도 등재된다(유통산업발전법상 '시장'도 대규모점포).
+    # 시장은 market CSV가 담당하므로 large_store에서 빠져야 하고, 두 kind가
+    # 같은 시설을 각각 세면 안 된다 (#55).
+    import math as _math
+
+    stores = facilities.load_facilities("large_store")
+    markets = facilities.load_facilities("market")
+    assert stores and markets
+
+    name = lambda f: str(f["raw"].get("bizplc_nm") or f["raw"].get("MRKT_NM") or "")
+    # 1) large_store에 시장·상가 성격 이름이 남아 있으면 안 된다.
+    assert not [f for f in stores if "시장" in name(f) or "상가" in name(f)]
+    # 2) 이름이 겹치면 안 된다.
+    assert not ({name(f) for f in stores} & {name(f) for f in markets})
+    # 3) 좌표가 150m 이내로 겹치는 쌍이 없어야 한다 (같은 시설의 이중 등재).
+    for s in stores:
+        for m in markets:
+            if s["lat"] and s["lng"] and m["lat"] and m["lng"]:
+                d = _math.hypot((s["lat"] - m["lat"]) * 111_000, (s["lng"] - m["lng"]) * 88_000)
+                assert d > 150, f"중복 의심: {name(s)} <-> {name(m)} ({d:.0f}m)"
 
 
 def test_supply_by_dong_covers_all_31_dong():

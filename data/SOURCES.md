@@ -32,6 +32,12 @@
 | `facilities_childcare.csv` | 안양시 어린이집·유치원 | 보건복지부 | 경기데이터드림 「어린이집 현황(제공표준)」 ([data.gg.go.kr](https://data.gg.go.kr/)) | 2025-07-25 |
 | `facilities_hospital.csv` | 안양시 병원 (병원급 이상, **의원 제외**) | 경기도 | 경기데이터드림 「경기도 병원 현황」 | — |
 | `facilities_pharmacy.csv` | 안양시 약국 | 경기도 | 경기데이터드림 「약국 현황」 | — |
+| `facilities_large_store.csv` | 안양시 대규모·준대규모점포 (45건, 폐업·휴업 이력 포함) | 경기도 | 경기데이터드림 「대규모점포 현황」 | — |
+| `facilities_market.csv` | 안양시 전통시장 9건 (점포수·취급품목·주차장 유무 포함) | 중소벤처기업부 | data.go.kr 전국전통시장표준데이터 (안양시분) | 2025-11-10 |
+
+> **대규모점포 ↔ 전통시장 중복 주의.** 유통산업발전법상 '시장'도 대규모점포로 등재돼, `facilities_large_store.csv`에 전통시장 7건(안양중앙시장·청원시장·석수시장·육동시장 등)이 함께 들어 있습니다.
+> 시장은 `facilities_market.csv`가 점포수·취급품목까지 갖춘 더 정확한 출처이므로, `app/facilities.py`의 `large_store` 스펙에서 이름에 `시장|상가`가 들어간 행을 제외해 **중복 집계를 막습니다**(회귀 테스트: `test_large_store_and_market_do_not_double_count`).
+> 그 결과 `large_store`는 정상영업 20건(대형마트·백화점·쇼핑몰 등)만 집계합니다. 이 중 2건(GS THE FRESH 안양비산점, 안양국제유통단지)은 **원본에 좌표가 없어** 동 매핑에서 빠집니다(매핑 실패율 10.0%).
 
 > 병·의원 중 **개인 의원은 누락**됨(HIRA 병원정보서비스 별도 소싱 필요 — 이슈 #33).
 > 원본 컬럼명 그대로 보존(영문 표준 필드명). 추출 스크립트: `scripts/extract_anyang_geojson.py`(경계), 시설은 각 포털에서 안양시 필터 후 다운로드.

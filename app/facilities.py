@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -31,6 +32,13 @@ class FacilitySpec:
     unit: str  # "개소" | "㎡" | "병상"
     status_col: str | None = None  # 영업상태 컬럼 (있는 CSV만)
     status_ok: str = "영업"  # status_col 값에 이 문자열이 있어야 유효
+    # 이름이 이 정규식에 걸리는 행을 제외한다. 한 시설이 두 CSV에 중복 등재된
+    # 경우(대규모점포 대장에 전통시장이 함께 잡힘) 어느 kind가 담당할지 가르는 용도.
+    exclude_name_pattern: str | None = None
+    name_col: str | None = None  # exclude_name_pattern을 적용할 컬럼
+    # 좌표→동 매핑 실패 허용 상한. 원본 CSV의 좌표 충실도가 종류마다 달라
+    # 일괄 10%로 묶을 수 없다. 값을 올릴 땐 반드시 이유를 주석으로 남길 것.
+    max_unmapped: float = 0.10
 
 
 REGISTRY: dict[str, FacilitySpec] = {
@@ -41,6 +49,18 @@ REGISTRY: dict[str, FacilitySpec] = {
     # 원본에 폐업·전출 병원이 섞여 있어(47행 중 17행) 병상수가 ~38% 부풀려짐 → 영업중만 집계.
     "hospital": FacilitySpec("hospital", "facilities_hospital.csv", "refine_wgs84_lat", "refine_wgs84_logt", "sickbd_cnt", "병원(병원급 이상)", "병상", status_col="bsn_state_nm"),
     "pharmacy": FacilitySpec("pharmacy", "facilities_pharmacy.csv", "refine_wgs84_lat", "refine_wgs84_logt", None, "약국", "개소"),
+    # 대규모점포 대장에는 전통시장도 함께 등재된다(유통산업발전법상 '시장'도 대규모점포).
+    # 시장은 아래 market CSV가 점포수·취급품목까지 갖춘 더 정확한 출처이므로 그쪽에 맡기고,
+    # 여기서는 시장·상가를 빼 "대형마트·백화점·쇼핑몰" 의미로 좁힌다. 두 kind의 중복 집계도
+    # 이걸로 막는다(회귀 테스트: test_large_store_and_market_do_not_double_count).
+    # max_unmapped=0.15 — 정상영업 20건 중 2건(GS THE FRESH 안양비산점, 안양국제유통단지)이
+    # 원본에 좌표가 없어 10.0%다. 기본 10% 가드에 정확히 걸려 종류별 상한을 둔다.
+    "large_store": FacilitySpec(
+        "large_store", "facilities_large_store.csv", "refine_wgs84_lat", "refine_wgs84_logt", None,
+        "대규모점포", "개소", status_col="bsn_state_nm", status_ok="정상영업",
+        exclude_name_pattern="시장|상가", name_col="bizplc_nm", max_unmapped=0.15,
+    ),
+    "market": FacilitySpec("market", "facilities_market.csv", "LATITUDE", "LONGITUDE", None, "전통시장", "개소"),
 }
 
 
@@ -59,11 +79,15 @@ def load_facilities(kind: str) -> list[dict]:
     if spec is None:
         raise ValueError(f"알 수 없는 시설 종류: {kind} (가능: {sorted(REGISTRY)})")
     df = data.read_csv(spec.filename)
+    exclude = re.compile(spec.exclude_name_pattern) if spec.exclude_name_pattern else None
     out: list[dict] = []
     for row in df.to_dict("records"):
         if spec.status_col is not None:
             state = str(row.get(spec.status_col) or "")
             if spec.status_ok not in state:  # 폐업·전출 등 제외
+                continue
+        if exclude is not None and spec.name_col:
+            if exclude.search(str(row.get(spec.name_col) or "")):  # 다른 kind가 담당하는 시설
                 continue
         lat = _to_float(row.get(spec.lat_col))
         lng = _to_float(row.get(spec.lng_col))
