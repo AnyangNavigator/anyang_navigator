@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from collections import defaultdict
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
@@ -215,14 +218,31 @@ def simulator_brief(
     )
 
 
+@lru_cache
+def _boundaries_payload() -> tuple[bytes, str]:
+    """직렬화된 경계 GeoJSON 본문과 ETag. 경계·지표는 배포 중 안 바뀌므로 1회만 계산한다."""
+    body = json.dumps(
+        facilities.boundaries_with_metrics(), ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
+    etag = f'"{hashlib.md5(body).hexdigest()}"'  # noqa: S324 — 캐시 검증용, 보안 용도 아님
+    return body, etag
+
+
 @app.get("/api/dong-boundaries")
-def api_dong_boundaries():
+def api_dong_boundaries(request: Request):
     """안양시 31개 행정동 경계 GeoJSON — 대시보드 choropleth 지도용.
 
     properties에 동별 인구(`total_population`)와 공급 지표(`supply_*`, #37 규격)가
     함께 실린다. 지도 지표 토글이 이 한 번의 응답으로 레이어를 바꾼다.
+
+    ~300KB로 매 대시보드 로드마다 재요청되므로(#59) `Cache-Control`(1일)과
+    `ETag`를 붙여 재방문·동 전환 시 브라우저 캐시/304로 재사용되게 한다.
     """
-    return facilities.boundaries_with_metrics()
+    body, etag = _boundaries_payload()
+    headers = {"Cache-Control": "public, max-age=86400", "ETag": etag}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
+    return Response(content=body, media_type="application/json", headers=headers)
 
 
 @app.get("/api/dong/{dong_name}")

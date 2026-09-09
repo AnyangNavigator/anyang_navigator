@@ -124,6 +124,7 @@ def unmapped_ratio(kind: str) -> float:
     return sum(1 for f in rows if not f["dong"]) / len(rows)
 
 
+@lru_cache
 def boundaries_with_metrics() -> dict:
     """행정동 경계 GeoJSON에 인구 + 공급 지표를 붙인다 (지도 choropleth 레이어용).
 
