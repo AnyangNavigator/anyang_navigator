@@ -260,7 +260,12 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/chat")
 def api_chat(payload: ChatRequest):
-    return {"answer": chatbot_answer(payload.question, payload.dong)}
+    # 챗봇이 facilities·cluster·gap·simulator를 모두 건드리므로, 예상 못 한
+    # 예외가 500으로 새어나가지 않게 한 겹 감싼다 (#66 리뷰, /api/report와 일관).
+    try:
+        return {"answer": chatbot_answer(payload.question, payload.dong)}
+    except Exception:
+        return {"answer": "요청을 처리하는 중 문제가 생겼습니다. 질문을 바꿔 다시 시도해 주세요."}
 
 
 class SimulateRequest(BaseModel):

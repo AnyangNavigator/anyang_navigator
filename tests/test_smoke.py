@@ -517,6 +517,21 @@ def test_chatbot_simulation_and_no_bracket_tags(monkeypatch):
     assert "[" not in ans and "]" not in ans
 
 
+def test_chat_api_invalid_dong_is_guidance_not_500(monkeypatch):
+    # #66 리뷰: current_dong은 클라이언트가 임의로 채우는 필드다. 존재하지 않는
+    # 동명이 와도 500이 아니라 200 + 정상 답변이어야 한다 (#9/#15 원칙).
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    res = client.post("/api/chat", json={"question": "주차장 어때?", "dong": "없는동"})
+    assert res.status_code == 200
+    ans = res.json()["answer"]
+    assert ans and "공영주차시설" in ans  # 시설 질문은 그대로 처리
+
+    from app import chatbot
+
+    # 위치도 시설도 못 잡는 질문 + 잘못된 dong → 안내 문구
+    assert "포함해" in chatbot.answer("안녕", "존재하지않는동")
+
+
 def test_api_dong_boundaries():
     res = client.get("/api/dong-boundaries")
     assert res.status_code == 200

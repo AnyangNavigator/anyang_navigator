@@ -202,13 +202,28 @@ def _ranked_needs(gu: str) -> dict:
     return {"구": gu, "향후 필요 응답률 상위(%)": {k: v for k, v in top}}
 
 
+def _primary_gu(dongs: list[str], gu: str | None) -> str | None:
+    """질문의 대표 구. 명시된 gu 우선, 없으면 첫 동의 소속 구.
+
+    `dongs`에 유효하지 않은 동명(클라이언트가 임의로 채운 `dong` 등)이 있어도
+    `None`을 흘려보낸다 — `.gu` 접근에서 터지지 않게 (#66 리뷰).
+    """
+    if gu:
+        return gu
+    for dn in dongs:
+        d = data.get_dong(dn)
+        if d:
+            return d.gu
+    return None
+
+
 def _build_context(
     question: str, dongs: list[str], gu: str | None, facs: list[str]
 ) -> dict:
     """질문에 관련된 구조화 데이터만 추린다 (RAG의 retrieval 단계)."""
     ctx: dict = {"질문": question}
-    dongs = dongs[:2]  # 비교는 두 동까지
-    primary_gu = gu or (data.get_dong(dongs[0]).gu if dongs else None)
+    dongs = [dn for dn in dongs[:2] if data.get_dong(dn)]  # 유효한 동만 (비교는 두 동까지)
+    primary_gu = _primary_gu(dongs, gu)
 
     if dongs:
         ctx["대상 행정동"] = [
@@ -270,7 +285,8 @@ def _build_context(
 def _rule_based_answer(
     question: str, dongs: list[str], gu: str | None, facs: list[str]
 ) -> str:
-    primary_gu = gu or (data.get_dong(dongs[0]).gu if dongs else None)
+    dongs = [dn for dn in dongs if data.get_dong(dn)]
+    primary_gu = _primary_gu(dongs, gu)
 
     if len(dongs) == 1 and not facs and re.search(r"유형|군집|비슷|성격", question):
         cb = _cluster_block(dongs[0])
@@ -336,7 +352,8 @@ def _rule_based_answer(
 def answer(question: str, current_dong: str | None = None) -> str:
     facs = _find_facilities(question)
     dongs = _find_dongs(question)
-    if not dongs and current_dong:
+    # current_dong은 클라이언트가 임의로 채우는 필드라 검증 후에만 채택 (#66 리뷰).
+    if not dongs and current_dong and data.get_dong(current_dong):
         dongs = [current_dong]
     gu = _find_gu(question)
 
