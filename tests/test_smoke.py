@@ -572,6 +572,70 @@ def test_api_simulate_rank_missing_budget_and_count():
     assert "error" in res.json()
 
 
+def test_simulate_gap_reduction_is_signed():
+    # 정상 시나리오: 격차가 좁혀지므로 gap_reduction > 0
+    ok = simulator.simulate(region="만안구", facility="공영주차시설", num_facilities=2)
+    assert ok.gap_reduction > 0
+    assert ok.gap_reduction == round(abs(ok.current_gap) - abs(ok.projected_gap), 1)
+    # 역효과 시나리오(필요도 낮은 동안구에 투입): 격차가 벌어지므로 gap_reduction < 0
+    bad = simulator.simulate(region="동안구", facility="공영주차시설", num_facilities=3)
+    assert bad.gap_reduction < 0
+    assert bad.adverse_warning
+
+
+def test_rank_puts_adverse_scenario_last_with_negative_efficiency():
+    # #57: 격차를 벌리는 시나리오가 "효율 좋은 1순위"로 뜨면 안 된다.
+    ranked = simulator.rank_scenarios(
+        [
+            {"region": "동안구", "facility": "공영주차시설", "budget": 6_000_000_000},
+            {"region": "만안구", "facility": "공원녹지산책로", "budget": 3_000_000_000},
+        ]
+    )
+    adverse = next(r for r in ranked if r.result.region == "동안구")
+    normal = next(r for r in ranked if r.result.region == "만안구")
+    assert adverse.efficiency < 0 < normal.efficiency
+    assert adverse.rank > normal.rank
+    assert adverse.result.adverse_warning
+
+
+def test_api_rank_exposes_adverse_warning_and_gap_reduction():
+    res = client.post(
+        "/api/simulate/rank",
+        json={
+            "scenarios": [
+                {"region": "동안구", "facility": "공영주차시설", "budget": 6_000_000_000},
+                {"region": "만안구", "facility": "공영주차시설", "budget": 6_000_000_000},
+            ]
+        },
+    )
+    assert res.status_code == 200
+    rows = res.json()["ranked"]
+    adverse = next(r for r in rows if r["region"] == "동안구")
+    assert adverse["gap_reduction"] < 0
+    assert adverse["adverse_warning"]
+    assert adverse["efficiency"] < 0
+
+
+def test_rank_continues_when_one_scenario_underfunded():
+    # #58: 예산 부족 시나리오 1건이 전체 비교를 죽이면 안 된다.
+    res = client.post(
+        "/api/simulate/rank",
+        json={
+            "scenarios": [
+                {"region": "만안구", "facility": "공영주차시설", "budget": 3_000_000_000},
+                {"region": "만안구", "facility": "도서관", "budget": 3_000_000_000},  # 단가 40억
+            ]
+        },
+    )
+    assert res.status_code == 200
+    rows = res.json()["ranked"]
+    assert len(rows) == 2
+    ok = next(r for r in rows if r["name"].endswith("공영주차시설"))
+    bad = next(r for r in rows if r["name"].endswith("도서관"))
+    assert ok["rank"] == 1
+    assert bad["rank"] is None and bad["error"]
+
+
 def test_call_openai_falls_back_on_malformed_json_response(monkeypatch):
     # OpenAI가 파싱 불가능한 바디를 돌려줘도 예외가 새어나가지 않고
     # None(규칙 기반 폴백 신호)을 반환해야 한다 (#15).

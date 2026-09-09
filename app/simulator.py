@@ -113,6 +113,10 @@ class SimulationResult:
     dongan_current: float
     manan_projected: float
     assumption_note: str
+    # |현재 격차| − |예상 격차|. 양수 = 두 구 격차가 좁혀짐, 음수 = 벌어짐.
+    # `estimated_reduction`(투입 지역 응답률 감소분, 항상 ≥0)과 달리 부호가 있어
+    # 균형발전 관점의 효과를 그대로 나타낸다. 순위화(#57)는 이 값을 쓴다.
+    gap_reduction: float = 0.0
     # 투입 지역이 해당 시설 필요도가 더 낮은 쪽이라 격차가 오히려 벌어지는
     # 시나리오일 때 채워지는 경고 문구(#9 A3). 정상 시나리오면 빈 문자열.
     adverse_warning: str = ""
@@ -125,11 +129,12 @@ BUDGET_UNIT = 100_000_000  # 1억원
 
 @dataclass
 class RankedScenario:
-    rank: int
+    rank: int  # 1부터. 계산 실패한 시나리오는 0.
     name: str
     budget: float
-    efficiency: float  # 1억원당 예상 격차 감소폭(%p)
-    result: SimulationResult
+    efficiency: float  # 1억원당 격차 감소폭(%p). 음수면 격차가 벌어지는 시나리오.
+    result: SimulationResult | None = None
+    error: str | None = None  # 이 시나리오만 계산 실패한 이유(예산 부족 등). #58
 
 
 def estimate_facility_count(facility: str, budget: float) -> int:
@@ -193,6 +198,7 @@ def simulate(region: str, facility: str, num_facilities: int | None = None, budg
         dongan_projected = round(dongan_current - estimated_reduction, 1)
 
     projected_gap = round(manan_projected - dongan_projected, 1)
+    gap_reduction = round(abs(current_gap) - abs(projected_gap), 1)
 
     # 투입 지역이 해당 시설 필요도가 더 낮은 쪽이면 격차가 오히려 벌어진다(#9 A3).
     # 시나리오 자체를 막지는 않되, 결과 화면·리포트가 이를 분명히 알리도록 경고를 채운다.
@@ -211,6 +217,7 @@ def simulate(region: str, facility: str, num_facilities: int | None = None, budg
         current_gap=current_gap,
         estimated_reduction=round(estimated_reduction, 1),
         projected_gap=projected_gap,
+        gap_reduction=gap_reduction,
         manan_current=manan_current,
         dongan_current=dongan_current,
         manan_projected=manan_projected,
@@ -232,40 +239,55 @@ def rank_scenarios(scenarios: list[dict]) -> list[RankedScenario]:
       - name (선택): 표시용 시나리오명
 
     budget이 주어지면 estimate_facility_count()로 개소를 환산하고, 그렇지 않으면
-    num_facilities를 그대로 쓴다. 효율은 "1억원당 예상 격차 감소폭(%p)"으로,
-    budget이 없으면 0으로 둔다(예산 대비 비교 불가). 반환 리스트는 효율 내림차순
-    정렬이며 rank는 1부터 부여된다. 계산 로직은 simulate()를 그대로 재사용한다.
+    num_facilities를 그대로 쓴다. 효율은 "1억원당 **격차 감소폭**(%p)"으로,
+    budget이 없으면 0으로 둔다(예산 대비 비교 불가). 격차를 벌리는 시나리오(#57)는
+    `gap_reduction`이 음수라 효율도 음수가 되어 자연스럽게 하위로 정렬된다.
+
+    한 시나리오가 계산 불가(예산 부족 등)여도 **전체를 중단하지 않는다**(#58).
+    실패한 시나리오는 `error`가 채워진 채 rank=0으로 목록 맨 뒤에 붙는다.
+    계산 로직은 simulate()를 그대로 재사용한다.
     """
-    ranked: list[RankedScenario] = []
-    for idx, sc in enumerate(scenarios):
+    entries: list[RankedScenario] = []
+    for sc in scenarios:
         region = sc.get("region")
         facility = sc.get("facility")
         budget = float(sc.get("budget") or 0)
         num_facilities = sc.get("num_facilities")
+        name = sc.get("name") or f"{region} · {facility}"
+
         if num_facilities is None and budget <= 0:
-            raise ValueError(
-                f"{idx + 1}번째 시나리오: budget 또는 num_facilities 중 하나는 필요합니다."
+            entries.append(RankedScenario(
+                rank=0, name=name, budget=budget, efficiency=0.0,
+                error="budget 또는 num_facilities 중 하나는 필요합니다.",
+            ))
+            continue
+        try:
+            result = simulate(
+                region=region,
+                facility=facility,
+                num_facilities=num_facilities,
+                budget=budget if budget > 0 else None,
             )
-        result = simulate(
-            region=region,
-            facility=facility,
-            num_facilities=num_facilities,
-            budget=budget if budget > 0 else None,
-        )
+        except ValueError as e:
+            entries.append(RankedScenario(
+                rank=0, name=name, budget=budget, efficiency=0.0, error=str(e),
+            ))
+            continue
         efficiency = (
-            round(result.estimated_reduction / (budget / BUDGET_UNIT), 4)
+            round(result.gap_reduction / (budget / BUDGET_UNIT), 4)
             if budget > 0
             else 0.0
         )
-        name = sc.get("name") or f"{region} · {facility}"
-        ranked.append(
+        entries.append(
             RankedScenario(rank=0, name=name, budget=budget, efficiency=efficiency, result=result)
         )
 
-    ranked.sort(key=lambda r: r.efficiency, reverse=True)
-    for rank, r in enumerate(ranked, start=1):
+    valid = [e for e in entries if e.error is None]
+    failed = [e for e in entries if e.error is not None]
+    valid.sort(key=lambda r: r.efficiency, reverse=True)
+    for rank, r in enumerate(valid, start=1):
         r.rank = rank
-    return ranked
+    return valid + failed
 
 
 def run_scenario(scenario_id: str = DEFAULT_SCENARIO_ID) -> tuple[dict, SimulationResult]:
