@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
@@ -15,6 +16,10 @@ from .chatbot import answer as chatbot_answer
 
 app = FastAPI(title="안양 균형발전 내비게이터")
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
+
+# 미리 빌드한 Tailwind CSS(app/static/app.css)를 서빙한다. Play CDN을 쓰면
+# 브라우저가 런타임에 CSS를 만들고 콘솔에 프로덕션 경고가 뜬다(#60).
+app.mount("/static", StaticFiles(directory=str(Path(__file__).resolve().parent / "static")), name="static")
 
 # 네이버 지도(Dynamic Map) Client ID. 도메인 화이트리스트로 보호되는 공개 키라
 # JS에 그대로 노출돼도 되지만, 배포 도메인이 바뀌면 NAVER_MAP_CLIENT_ID 환경변수로

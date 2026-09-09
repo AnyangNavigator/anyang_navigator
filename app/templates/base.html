@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}안양 균형발전 내비게이터{% endblock %}</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<!-- Tailwind는 Play CDN(런타임 CSS 생성 + 프로덕션 경고) 대신 미리 빌드한 CSS를 쓴다.
+     템플릿에 새 유틸리티 클래스를 추가했으면 scripts/build_css.md 절차로 재생성할 것. -->
+<link rel="stylesheet" href="/static/app.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 {% block extra_head %}{% endblock %}
 </head>
