@@ -302,20 +302,28 @@ def api_simulate_rank(payload: RankRequest):
         ranked = simulator.rank_scenarios([s.model_dump() for s in payload.scenarios])
     except ValueError as e:
         return {"error": str(e)}
-    return {
-        "ranked": [
-            {
-                "rank": r.rank,
-                "name": r.name,
-                "region": r.result.region,
-                "facility": r.result.facility,
-                "num_facilities": r.result.num_facilities,
-                "budget": r.budget,
-                "current_gap": r.result.current_gap,
-                "estimated_reduction": r.result.estimated_reduction,
-                "projected_gap": r.result.projected_gap,
-                "efficiency": r.efficiency,
-            }
-            for r in ranked
-        ]
-    }
+
+    def _row(r: simulator.RankedScenario) -> dict:
+        if r.error is not None:  # 이 시나리오만 계산 실패 (#58)
+            return {"rank": None, "name": r.name, "budget": r.budget, "error": r.error}
+        return {
+            "rank": r.rank,
+            "name": r.name,
+            "region": r.result.region,
+            "facility": r.result.facility,
+            "num_facilities": r.result.num_facilities,
+            "budget": r.budget,
+            "current_gap": r.result.current_gap,
+            "estimated_reduction": r.result.estimated_reduction,
+            "gap_reduction": r.result.gap_reduction,
+            "projected_gap": r.result.projected_gap,
+            "efficiency": r.efficiency,
+            # 격차를 벌리는 시나리오면 경고 문구를 그대로 전달 (#57)
+            "adverse_warning": r.result.adverse_warning,
+        }
+
+    rows = [_row(r) for r in ranked]
+    # 유효한 시나리오가 하나도 없으면 최상위 error로 (기존 동작 유지)
+    if all(row.get("error") for row in rows):
+        return {"error": rows[0]["error"] if rows else "비교할 시나리오가 없습니다."}
+    return {"ranked": rows}
