@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from collections import defaultdict
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
@@ -215,14 +218,31 @@ def simulator_brief(
     )
 
 
+@lru_cache
+def _boundaries_payload() -> tuple[bytes, str]:
+    """직렬화된 경계 GeoJSON 본문과 ETag. 경계·지표는 배포 중 안 바뀌므로 1회만 계산한다."""
+    body = json.dumps(
+        facilities.boundaries_with_metrics(), ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
+    etag = f'"{hashlib.md5(body).hexdigest()}"'  # noqa: S324 — 캐시 검증용, 보안 용도 아님
+    return body, etag
+
+
 @app.get("/api/dong-boundaries")
-def api_dong_boundaries():
+def api_dong_boundaries(request: Request):
     """안양시 31개 행정동 경계 GeoJSON — 대시보드 choropleth 지도용.
 
     properties에 동별 인구(`total_population`)와 공급 지표(`supply_*`, #37 규격)가
     함께 실린다. 지도 지표 토글이 이 한 번의 응답으로 레이어를 바꾼다.
+
+    ~300KB로 매 대시보드 로드마다 재요청되므로(#59) `Cache-Control`(1일)과
+    `ETag`를 붙여 재방문·동 전환 시 브라우저 캐시/304로 재사용되게 한다.
     """
-    return facilities.boundaries_with_metrics()
+    body, etag = _boundaries_payload()
+    headers = {"Cache-Control": "public, max-age=86400", "ETag": etag}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
+    return Response(content=body, media_type="application/json", headers=headers)
 
 
 @app.get("/api/dong/{dong_name}")
@@ -307,20 +327,28 @@ def api_simulate_rank(payload: RankRequest):
         ranked = simulator.rank_scenarios([s.model_dump() for s in payload.scenarios])
     except ValueError as e:
         return {"error": str(e)}
-    return {
-        "ranked": [
-            {
-                "rank": r.rank,
-                "name": r.name,
-                "region": r.result.region,
-                "facility": r.result.facility,
-                "num_facilities": r.result.num_facilities,
-                "budget": r.budget,
-                "current_gap": r.result.current_gap,
-                "estimated_reduction": r.result.estimated_reduction,
-                "projected_gap": r.result.projected_gap,
-                "efficiency": r.efficiency,
-            }
-            for r in ranked
-        ]
-    }
+
+    def _row(r: simulator.RankedScenario) -> dict:
+        if r.error is not None:  # 이 시나리오만 계산 실패 (#58)
+            return {"rank": None, "name": r.name, "budget": r.budget, "error": r.error}
+        return {
+            "rank": r.rank,
+            "name": r.name,
+            "region": r.result.region,
+            "facility": r.result.facility,
+            "num_facilities": r.result.num_facilities,
+            "budget": r.budget,
+            "current_gap": r.result.current_gap,
+            "estimated_reduction": r.result.estimated_reduction,
+            "gap_reduction": r.result.gap_reduction,
+            "projected_gap": r.result.projected_gap,
+            "efficiency": r.efficiency,
+            # 격차를 벌리는 시나리오면 경고 문구를 그대로 전달 (#57)
+            "adverse_warning": r.result.adverse_warning,
+        }
+
+    rows = [_row(r) for r in ranked]
+    # 유효한 시나리오가 하나도 없으면 최상위 error로 (기존 동작 유지)
+    if all(row.get("error") for row in rows):
+        return {"error": rows[0]["error"] if rows else "비교할 시나리오가 없습니다."}
+    return {"ranked": rows}

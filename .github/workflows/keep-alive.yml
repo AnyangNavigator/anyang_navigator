@@ -1,0 +1,43 @@
+name: Keep alive (Render 콜드스타트 방지)
+
+# 왜: Render 무료 플랜은 15분 유휴 시 인스턴스를 재웁니다. 잠든 상태에서 첫 요청이
+# 오면 깨어나는 데 30초~1분 이상 걸리고, 실제로 타임아웃까지 겪었습니다.
+# 심사위원·공개검증 방문자가 링크를 처음 클릭할 때 그대로 겪는 문제라 주기적으로 깨워둡니다.
+#
+# ⚠️ 왜 24시간이 아닌가 — Render 무료 플랜은 **월 750 인스턴스 시간**이 한도입니다.
+# 24시간 내내 깨워두면 720~744시간이라 한도에 거의 붙어, 초과 시 서비스가 멈춥니다
+# (공개검증 중 멈추면 치명적). 그래서 사람이 실제로 접속할 만한 시간대만 깨워둡니다.
+#   00:00~13:59 UTC = 09:00~22:59 KST (14시간) → 월 약 420~434시간 (한도의 약 58%, 안전)
+# 심사가 새벽에 잡히는 등 더 넓은 시간대가 필요하면 아래 cron의 시간 범위를 넓히면 됩니다.
+# 급할 때는 Actions 탭에서 "Run workflow"로 즉시 깨울 수 있습니다.
+
+on:
+  schedule:
+    # 매 10분 (09:00~22:00 KST). GitHub 예약 실행은 부하에 따라 지연될 수 있으나,
+    # 10분 간격이면 15분 유휴 타이머를 대체로 넘기지 않습니다.
+    - cron: "*/10 0-13 * * *"
+  workflow_dispatch: # 심사 직전 수동으로 깨우기
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: /healthz 핑
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 배포본 깨우기
+        run: |
+          URL="https://anyang-navigator.onrender.com/healthz"
+          # 잠들어 있으면 첫 요청이 오래 걸리므로 넉넉히 기다린다.
+          code=$(curl -sS -o /tmp/body.json -w "%{http_code}" --max-time 120 "$URL" || echo "000")
+          echo "HTTP $code"
+          cat /tmp/body.json || true
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::warning::헬스체크가 200이 아닙니다 (HTTP $code). 배포 상태를 확인하세요."
+          fi
+          # 서비스가 죽어도 이 워크플로는 실패로 두지 않는다 — 깨우기가 목적이고,
+          # 반복 실패 알림으로 CI 신호를 흐리지 않기 위함. 이상은 위 warning으로 남는다.

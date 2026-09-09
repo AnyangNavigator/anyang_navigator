@@ -57,12 +57,13 @@
           <th class="py-2 pr-3">시나리오</th>
           <th class="py-2 pr-3">예상 개소</th>
           <th class="py-2 pr-3">예산(억원)</th>
-          <th class="py-2 pr-3">예상 감소폭(%p)</th>
+          <th class="py-2 pr-3">격차 감소폭(%p)</th>
           <th class="py-2 pr-3">효율(1억원당 %p)</th>
         </tr>
       </thead>
       <tbody id="rank-tbody"></tbody>
     </table>
+    <p id="rank-note" class="text-xs text-red-600 mt-3" hidden>▲ 표시된 시나리오는 필요도가 더 낮은 구에 투입하는 안이라, 두 구의 격차가 <strong>오히려 벌어집니다</strong>. 효율이 음수이며 순위 하단에 정렬됩니다.</p>
     <p class="text-xs text-amber-600 mt-3">※ 효율 수치는 하드코딩된 가정 계수 기반 추정치이며 실측 데이터가 아닙니다. 정책 우선순위 논의용입니다.</p>
   </div>
 </div>
@@ -132,15 +133,33 @@
         }
         var tbody = document.getElementById("rank-tbody");
         tbody.innerHTML = data.ranked.map(function (row) {
+          if (row.error) {
+            // 이 시나리오만 계산 실패 — 나머지 순위는 그대로 보여준다 (#58)
+            return '<tr class="border-b border-slate-100 text-slate-400">' +
+              '<td class="py-2 pr-3">—</td>' +
+              '<td class="py-2 pr-3">' + row.name + "</td>" +
+              '<td class="py-2 pr-3 text-red-500" colspan="4">' + row.error + "</td>" +
+              "</tr>";
+          }
+          // gap_reduction: 양수 = 격차 좁힘, 음수 = 벌어짐 (#57)
+          var widened = row.gap_reduction < 0;
+          var gapCell = widened
+            ? '<td class="py-2 pr-3 text-red-600 font-semibold" title="' + (row.adverse_warning || "") + '">▲ +' +
+                Math.abs(row.gap_reduction) + ' 확대</td>'
+            : '<td class="py-2 pr-3 text-blue-600 font-semibold">−' + row.gap_reduction + "</td>";
           return '<tr class="border-b border-slate-100">' +
             '<td class="py-2 pr-3 font-bold">' + row.rank + "</td>" +
-            '<td class="py-2 pr-3">' + row.name + "</td>" +
+            '<td class="py-2 pr-3">' + row.name +
+              (widened ? ' <span class="text-xs text-red-600">역효과</span>' : "") + "</td>" +
             '<td class="py-2 pr-3">' + row.num_facilities + "개소</td>" +
             '<td class="py-2 pr-3">' + (row.budget / 100000000).toLocaleString() + "</td>" +
-            '<td class="py-2 pr-3 text-blue-600 font-semibold">-' + row.estimated_reduction + "</td>" +
-            '<td class="py-2 pr-3 font-semibold">' + row.efficiency + "</td>" +
+            gapCell +
+            '<td class="py-2 pr-3 font-semibold' + (row.efficiency < 0 ? ' text-red-600' : "") + '">' +
+              row.efficiency + "</td>" +
             "</tr>";
         }).join("");
+        var adverse = data.ranked.some(function (r) { return !r.error && r.gap_reduction < 0; });
+        document.getElementById("rank-note").hidden = !adverse;
         document.getElementById("rank-result").classList.remove("hidden");
       })
       .catch(function () {
