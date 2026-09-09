@@ -327,9 +327,24 @@ def main() -> None:
         raise SystemExit(f"[오류] 못 찾은 동 ({len(missing)}개): {sorted(missing)} — 매핑/이름변경 확인 필요.")
     print("  31개 행정동 전부 매칭 완료.")
 
+    # 좌표를 소수점 6자리(≈0.11m)로 줄인다. choropleth·point-in-polygon에는
+    # 차고 넘치는 정밀도이고, 원본 TM 역변환이 뱉는 14자리를 그대로 두면
+    # 파일이 불필요하게 커진다(540KB → 300KB). (#59)
+    def _round6(node):
+        if isinstance(node, float):
+            return round(node, 6)
+        if isinstance(node, list):
+            return [_round6(x) for x in node]
+        return node
+
+    for feat in features:
+        feat["geometry"]["coordinates"] = _round6(feat["geometry"]["coordinates"])
+
     out = {"type": "FeatureCollection", "features": features}
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUT_PATH.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    OUT_PATH.write_text(
+        json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+    )
     print(f"저장 완료: {OUT_PATH} ({len(features)}개 feature, {OUT_PATH.stat().st_size:,} bytes)")
 
 

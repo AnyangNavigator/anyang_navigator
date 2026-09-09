@@ -146,6 +146,54 @@ def test_cluster_features_are_ratios_not_raw_counts():
     assert total.between(0.99, 1.01).all()
 
 
+def test_builtin_css_covers_template_classes():
+    """템플릿이 쓰는 Tailwind 클래스가 빌드된 app.css에 전부 있는지 (#60).
+
+    app.css는 빌드 결과물을 커밋해 두는 방식이라, 템플릿에 새 유틸리티 클래스를
+    추가하고 재빌드를 잊으면 **스타일이 조용히 깨진다.** 실제로 이 PR이 #63·#64와
+    엇갈리며 flex-col·sm:flex-row·text-red-500 등이 빠진 채로 올라갔었다.
+    풀 빌드를 CI에 넣는 대신 이 검사로 회귀를 잡는다.
+
+    재빌드 방법은 scripts/build_css.md 참고.
+    """
+    import glob
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    css = (root / "app" / "static" / "app.css").read_text(encoding="utf-8")
+
+    jinja = re.compile(r"\{%.*?%\}|\{\{.*?\}\}", re.S)
+    # Tailwind 유틸리티처럼 생긴 토큰만 (Jinja 조각·JS 문자열 연결 결과를 걸러낸다)
+    token = re.compile(r"^[a-z][a-z0-9]*(?:[:/.-][a-z0-9.\[\]%/-]+)*$")
+    # 앱에서 직접 정의한 클래스 — Tailwind가 만들지 않으므로 검사 대상이 아니다.
+    app_defined = {"no-print", "rank-row", "r-region", "r-facility", "r-budget", "r-del"}
+
+    def selector(cls: str) -> str:
+        return "." + "".join("\\" + ch if ch in ":/.[]%!" else ch for ch in cls)
+
+    used: set[str] = set()
+    for path in glob.glob(str(root / "app" / "templates" / "*.html")):
+        html = jinja.sub(" ", Path(path).read_text(encoding="utf-8"))
+        for attr in re.finditer(r'class="([^"]*)"', html):
+            for cls in attr.group(1).split():
+                if token.match(cls) and cls not in app_defined:
+                    used.add(cls)
+
+    assert used, "템플릿에서 클래스를 하나도 못 찾았다 — 추출 로직 확인 필요"
+    missing = sorted(c for c in used if selector(c) not in css)
+    assert not missing, (
+        f"app.css에 없는 클래스 {len(missing)}개: {missing[:15]} — "
+        "scripts/build_css.md 절차로 재빌드 후 커밋하세요."
+    )
+
+
+def test_static_css_is_served():
+    res = client.get("/static/app.css")
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("text/css")
+
+
 def test_dashboard_default():
     res = client.get("/dashboard")
     assert res.status_code == 200
@@ -506,6 +554,36 @@ def test_api_dong_boundaries():
     assert all(f["properties"]["total_population"] is not None for f in body["features"])
 
 
+def test_api_dong_boundaries_is_cacheable():
+    # ~300KB를 대시보드 로드마다 재요청하던 것을 캐시/304로 재사용 (#59).
+    res = client.get("/api/dong-boundaries")
+    assert "max-age=86400" in res.headers["cache-control"]
+    etag = res.headers["etag"]
+    assert etag
+    # 같은 ETag로 재요청하면 304 (본문 없음)
+    res304 = client.get("/api/dong-boundaries", headers={"If-None-Match": etag})
+    assert res304.status_code == 304
+    assert not res304.content
+
+
+def test_dong_boundaries_geojson_precision_is_trimmed():
+    # 좌표를 소수점 6자리로 줄여 파일·응답 크기를 절반 이하로 (#59).
+    import json
+    import pathlib
+
+    path = pathlib.Path(__file__).resolve().parent.parent / "data" / "anyang_dong_boundaries.geojson"
+    assert path.stat().st_size < 360_000  # 원본 540KB -> ~300KB
+    gj = json.loads(path.read_text(encoding="utf-8"))
+    for feat in gj["features"]:
+        polys = feat["geometry"]["coordinates"]
+        if feat["geometry"]["type"] == "Polygon":
+            polys = [polys]
+        for poly in polys:
+            for ring in poly:
+                for lng, lat in ring:
+                    assert round(lng, 6) == lng and round(lat, 6) == lat
+
+
 def test_api_dong_boundaries_carries_supply_metrics():
     # 지도 지표 토글(#38)이 한 번의 응답으로 레이어를 바꾸므로, 경계 GeoJSON에
     # 공급 지표가 전부 실려 있어야 한다.
@@ -595,6 +673,70 @@ def test_api_simulate_rank_missing_budget_and_count():
     )
     assert res.status_code == 200
     assert "error" in res.json()
+
+
+def test_simulate_gap_reduction_is_signed():
+    # 정상 시나리오: 격차가 좁혀지므로 gap_reduction > 0
+    ok = simulator.simulate(region="만안구", facility="공영주차시설", num_facilities=2)
+    assert ok.gap_reduction > 0
+    assert ok.gap_reduction == round(abs(ok.current_gap) - abs(ok.projected_gap), 1)
+    # 역효과 시나리오(필요도 낮은 동안구에 투입): 격차가 벌어지므로 gap_reduction < 0
+    bad = simulator.simulate(region="동안구", facility="공영주차시설", num_facilities=3)
+    assert bad.gap_reduction < 0
+    assert bad.adverse_warning
+
+
+def test_rank_puts_adverse_scenario_last_with_negative_efficiency():
+    # #57: 격차를 벌리는 시나리오가 "효율 좋은 1순위"로 뜨면 안 된다.
+    ranked = simulator.rank_scenarios(
+        [
+            {"region": "동안구", "facility": "공영주차시설", "budget": 6_000_000_000},
+            {"region": "만안구", "facility": "공원녹지산책로", "budget": 3_000_000_000},
+        ]
+    )
+    adverse = next(r for r in ranked if r.result.region == "동안구")
+    normal = next(r for r in ranked if r.result.region == "만안구")
+    assert adverse.efficiency < 0 < normal.efficiency
+    assert adverse.rank > normal.rank
+    assert adverse.result.adverse_warning
+
+
+def test_api_rank_exposes_adverse_warning_and_gap_reduction():
+    res = client.post(
+        "/api/simulate/rank",
+        json={
+            "scenarios": [
+                {"region": "동안구", "facility": "공영주차시설", "budget": 6_000_000_000},
+                {"region": "만안구", "facility": "공영주차시설", "budget": 6_000_000_000},
+            ]
+        },
+    )
+    assert res.status_code == 200
+    rows = res.json()["ranked"]
+    adverse = next(r for r in rows if r["region"] == "동안구")
+    assert adverse["gap_reduction"] < 0
+    assert adverse["adverse_warning"]
+    assert adverse["efficiency"] < 0
+
+
+def test_rank_continues_when_one_scenario_underfunded():
+    # #58: 예산 부족 시나리오 1건이 전체 비교를 죽이면 안 된다.
+    res = client.post(
+        "/api/simulate/rank",
+        json={
+            "scenarios": [
+                {"region": "만안구", "facility": "공영주차시설", "budget": 3_000_000_000},
+                {"region": "만안구", "facility": "도서관", "budget": 3_000_000_000},  # 단가 40억
+            ]
+        },
+    )
+    assert res.status_code == 200
+    rows = res.json()["ranked"]
+    assert len(rows) == 2
+    ok = next(r for r in rows if r["name"].endswith("공영주차시설"))
+    bad = next(r for r in rows if r["name"].endswith("도서관"))
+    assert ok["rank"] == 1
+    assert bad["rank"] is None and bad["error"]
 
 
 def test_call_openai_falls_back_on_malformed_json_response(monkeypatch):
