@@ -56,6 +56,18 @@ def _find_facility(question: str) -> str | None:
     return None
 
 
+def _facility_gap(facility: str) -> tuple[float, float, float]:
+    """시설 유형의 구별 필요도와 격차. (만안구, 동안구, 만안구-동안구 %p)
+
+    LLM 컨텍스트(`_build_context`)와 규칙 기반 답변(`_rule_based_answer`)이
+    같은 수치를 써야 하므로 계산은 여기 한 곳에만 둔다 (#45).
+    """
+    needed = data.load_needed_facilities()
+    manan = float(needed.loc["만안구", facility])
+    dongan = float(needed.loc["동안구", facility])
+    return manan, dongan, round(manan - dongan, 1)
+
+
 def _build_context(question: str, dong_name: str | None, facility: str | None) -> dict:
     """질문에 관련된 구조화 데이터만 추린다 (RAG의 retrieval 단계)."""
     ctx: dict = {"질문": question}
@@ -72,14 +84,12 @@ def _build_context(question: str, dong_name: str | None, facility: str | None) -
         other_gu = OTHER_GU[d.gu]
         ctx["반대편 구 사회조사(2025)"] = data.get_gu_survey_snapshot(other_gu)
     if facility:
-        needed = data.load_needed_facilities()
-        manan = float(needed.loc["만안구", facility])
-        dongan = float(needed.loc["동안구", facility])
+        manan, dongan, gap = _facility_gap(facility)
         ctx["문의 시설 필요도(구 단위, %)"] = {
             "시설": facility,
             "만안구": manan,
             "동안구": dongan,
-            "격차(만안구-동안구, %p)": round(manan - dongan, 1),
+            "격차(만안구-동안구, %p)": gap,
         }
     if not d and not facility:
         ctx["안내"] = "동 이름이나 시설 유형(주차/보건/복지/문화/체육/도서관/공원/어린이집)을 포함해 물어보세요."
@@ -90,10 +100,7 @@ def _rule_based_answer(question: str, dong_name: str | None, facility: str | Non
     d = data.get_dong(dong_name) if dong_name else None
 
     if facility:
-        needed = data.load_needed_facilities()
-        manan = float(needed.loc["만안구", facility])
-        dongan = float(needed.loc["동안구", facility])
-        gap = round(manan - dongan, 1)
+        manan, dongan, gap = _facility_gap(facility)
         base = (
             f"[구 단위, 2025 사회조사 기준] '{facility}' 향후 필요 응답률: "
             f"만안구 {manan}% / 동안구 {dongan}% (격차 {gap:+.1f}%p, +는 만안구가 더 높음)."

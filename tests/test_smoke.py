@@ -52,11 +52,43 @@ def test_hospital_excludes_closed_beds():
         assert metrics["hospital"] < 100  # 병상 100개/1,000명 이상은 데이터 이상 신호
 
 
+def test_clustering_covers_all_dong_and_is_reproducible():
+    from app import cluster
+
+    a = cluster.cluster_dong()
+    assert 3 <= a["k"] <= 6
+    assert set(a["dong_to_cluster"]) == {d.dong for d in data.list_dong()}
+    assert sum(c["size"] for c in a["clusters"]) == 31
+    assert len(a["clusters"]) == a["k"]
+    for c in a["clusters"]:
+        assert c["traits"] and c["dongs"]
+    # random_state 고정 → 같은 라벨링이 재현돼야 한다.
+    cluster.cluster_dong.cache_clear()
+    b = cluster.cluster_dong()
+    assert a["dong_to_cluster"] == b["dong_to_cluster"]
+
+
+def test_cluster_features_are_ratios_not_raw_counts():
+    from app import cluster
+
+    frame = cluster.feature_frame()
+    assert len(frame) == 31
+    # 비율 변수는 0~1 범위여야 한다 (규모 편향 방지).
+    for col in ("senior_ratio", "youth_ratio", "working_ratio"):
+        assert frame[col].between(0, 1).all()
+    # 세 비율의 합은 1 (반올림 오차 허용).
+    total = frame["senior_ratio"] + frame["youth_ratio"] + frame["working_ratio"]
+    assert total.between(0.99, 1.01).all()
+
+
 def test_dashboard_default():
     res = client.get("/dashboard")
     assert res.status_code == 200
     assert "안양1동" in res.text
     assert "trendChart" in res.text
+    # 군집분석 섹션과 "우열이 아님" 경고가 렌더돼야 한다 (#29).
+    assert "행정동 유형 군집분석" in res.text
+    assert "우열이 아닙니다" in res.text
 
 
 def test_all_facility_trends_matches_needed_facilities_columns():
@@ -365,6 +397,35 @@ def test_chatbot_uses_llm_with_structured_context(monkeypatch):
     assert "구 단위" in captured["system"]
 
 
+def test_chatbot_falls_back_when_llm_call_fails(monkeypatch):
+    # 키는 있는데 LLM 호출이 실패(타임아웃·API 오류 등)해 None이 오는 경로.
+    # _call_openai의 예외 처리는 report.py 쪽에서 검증되지만, chatbot.answer()가
+    # None을 받아 규칙 기반으로 내려가는지는 따로 확인돼 있지 않았다 (#46).
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    from app import chatbot
+
+    monkeypatch.setattr(chatbot, "_call_openai", lambda *a, **k: None)
+    ans = chatbot.answer("주차시설은 어때?", "안양1동")
+    assert "만안구 41.7%" in ans and "동안구 26.5%" in ans
+
+
+def test_chatbot_context_and_rule_answer_share_gap_numbers(monkeypatch):
+    # 같은 시설에 대해 LLM 컨텍스트와 규칙 기반 답변이 동일한 수치를 써야 한다.
+    # 계산이 두 곳에 중복돼 있으면 한쪽만 바뀌어 어긋날 수 있다 (#45).
+    from app import chatbot
+
+    manan, dongan, gap = chatbot._facility_gap("공영주차시설")
+    ctx = chatbot._build_context("주차시설은 어때?", "안양1동", "공영주차시설")
+    needed = ctx["문의 시설 필요도(구 단위, %)"]
+    assert (needed["만안구"], needed["동안구"]) == (manan, dongan)
+    assert needed["격차(만안구-동안구, %p)"] == gap
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    ans = chatbot.answer("주차시설은 어때?", "안양1동")
+    assert f"만안구 {manan}%" in ans and f"동안구 {dongan}%" in ans
+    assert f"{gap:+.1f}%p" in ans
+
+
 def test_api_dong_boundaries():
     res = client.get("/api/dong-boundaries")
     assert res.status_code == 200
@@ -375,6 +436,42 @@ def test_api_dong_boundaries():
     assert "안양1동" in dongs
     # 인구 데이터와 조인이 잘 됐는지 확인 (population_by_dong.csv와 행정동명이 어긋나면 None이 나옴)
     assert all(f["properties"]["total_population"] is not None for f in body["features"])
+
+
+def test_api_dong_boundaries_carries_supply_metrics():
+    # 지도 지표 토글(#38)이 한 번의 응답으로 레이어를 바꾸므로, 경계 GeoJSON에
+    # 공급 지표가 전부 실려 있어야 한다.
+    from app import facilities
+
+    body = client.get("/api/dong-boundaries").json()
+    props = {f["properties"]["dong"]: f["properties"] for f in body["features"]}
+    supply = facilities.supply_by_dong()
+
+    for kind in facilities.REGISTRY:
+        key = f"supply_{kind}"
+        assert all(key in p for p in props.values()), f"{key} 누락"
+    # 값이 supply_by_dong()과 일치해야 한다 (지도와 카드가 다른 숫자를 보이면 안 됨).
+    assert props["안양1동"]["supply_parking"] == supply["안양1동"]["parking"]
+
+
+def test_map_metric_catalog_matches_registry():
+    from app import facilities
+
+    catalog = facilities.metric_catalog()
+    keys = [m["key"] for m in catalog]
+    assert keys[0] == "total_population"  # 기본 레이어는 인구
+    assert set(keys[1:]) == {f"supply_{k}" for k in facilities.REGISTRY}
+    # 공원만 1인당 면적, 나머지는 1,000명당 (docs/METRICS.md 규격)
+    per = {m["key"]: m["per"] for m in catalog}
+    assert per["supply_park"] == "1인당"
+    assert per["supply_parking"] == "1,000명당"
+
+
+def test_dashboard_renders_map_metric_toggle():
+    res = client.get("/dashboard")
+    assert res.status_code == 200
+    assert 'id="mapMetric"' in res.text
+    assert "supply_parking" in res.text  # 드롭다운 옵션 + MAP_METRICS 주입
 
 
 def test_api_simulate():

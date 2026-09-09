@@ -100,6 +100,56 @@ def unmapped_ratio(kind: str) -> float:
     return sum(1 for f in rows if not f["dong"]) / len(rows)
 
 
+def boundaries_with_metrics() -> dict:
+    """행정동 경계 GeoJSON에 인구 + 공급 지표를 붙인다 (지도 choropleth 레이어용).
+
+    `data.dong_boundaries_with_population()`의 확장판. properties에 기존
+    `total_population`은 그대로 두고(하위호환) `supply_<kind>`를 추가한다.
+    데이터가 없는 동은 해당 키가 None으로 내려가 프런트에서 회색 처리된다.
+
+    facilities -> data 방향 의존만 있으므로 이 함수는 data.py가 아니라 여기에 둔다
+    (data.py가 facilities를 import하면 순환 참조).
+    """
+    boundaries = data.dong_boundaries_with_population()
+    supply = supply_by_dong()
+    features = []
+    for feat in boundaries["features"]:
+        dong = feat["properties"].get("dong")
+        metrics = supply.get(dong, {})
+        props = {**feat["properties"]}
+        for kind in REGISTRY:
+            props[f"supply_{kind}"] = metrics.get(kind)
+        features.append({**feat, "properties": props})
+    return {"type": "FeatureCollection", "features": features}
+
+
+def metric_catalog() -> list[dict]:
+    """지도 지표 토글 메뉴 정의. 프런트가 이 목록으로 드롭다운·범례를 만든다."""
+    catalog = [
+        {
+            "key": "total_population",
+            "label": "인구 규모",
+            "unit": "명",
+            "per": "",
+            "low": "인구 적음",
+            "high": "인구 많음",
+        }
+    ]
+    for kind, spec in REGISTRY.items():
+        per = "1인당" if spec.unit == "㎡" else "1,000명당"
+        catalog.append(
+            {
+                "key": f"supply_{kind}",
+                "label": spec.label,
+                "unit": spec.unit,
+                "per": per,
+                "low": "공급 적음",
+                "high": "공급 많음",
+            }
+        )
+    return catalog
+
+
 def supply_by_dong() -> dict[str, dict[str, float]]:
     """행정동 → {kind: 인구 1,000명당 값}. 공원은 1인당 ㎡, 병원은 1,000명당 병상수.
 
