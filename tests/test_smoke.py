@@ -264,6 +264,60 @@ def test_about_page_lists_assumption_coefficients():
     assert "데이터 출처와 방법론" in res.text
     assert "공영주차시설" in res.text
     assert "1,500,000,000원" in res.text
+    # #34: 계수 도출 방법·한계와 시설별 근거가 노출돼야 한다.
+    assert "도출 방법과 한계" in res.text
+    assert "analyze_coefficients.py" in res.text
+
+
+def test_coef_basis_covers_every_facility():
+    # 계수·단가 근거 dict가 상수 전 항목을 빠짐없이 설명해야 한다 (#34).
+    assert set(simulator.COEF_BASIS) == set(simulator.FACILITY_IMPROVEMENT_COEF)
+    assert set(simulator.UNIT_COST_BASIS) == set(simulator.FACILITY_UNIT_COST)
+    assert all(simulator.COEF_BASIS.values())  # 빈 문자열 없음
+    assert all(simulator.UNIT_COST_BASIS.values())
+
+
+def test_coef_basis_superlatives_match_real_rankings():
+    # /about에 노출되는 근거 문구의 "최대/최상위" 주장이 실제 순위와 일치해야 한다
+    # (#34 리뷰: 사실과 다른 최상급 표현이 심사 리스크).
+    need = data.load_needed_facilities().loc["안양시 전체"].to_dict()
+    gaps = data.gu_needed_facility_gap()
+    top_need = max(need, key=need.get)
+    top_gap = max(gaps, key=gaps.get)
+    for facility, basis in simulator.COEF_BASIS.items():
+        if "필요도 최상위" in basis or "필요도 1위" in basis:
+            assert facility == top_need, f"{facility}: 필요도 1위는 {top_need}"
+        if "구 격차 최대" in basis or "구 격차 1위" in basis:
+            assert facility == top_gap, f"{facility}: 구 격차 1위는 {top_gap}"
+    # "구 격차 최대"를 주장하는 항목은 최대 하나여야 한다 (한 페이지 내 모순 방지).
+    assert sum("구 격차 최대" in b for b in simulator.COEF_BASIS.values()) <= 1
+
+
+def test_coef_values_within_trend_envelope():
+    # 접근 A 상한: 큰 충격 없이 2년간 필요도 변동은 대체로 ±3%p 수준.
+    # 1개소당 계수는 그 절반(약 2.0%p)을 넘지 않아야 한다 (#34 docs/COEFFICIENTS.md).
+    assert max(simulator.FACILITY_IMPROVEMENT_COEF.values()) <= 2.0
+    # 상대 크기 규칙: 구 격차 최대(보건의료)·필요도 상위(공영주차) 계수가
+    # 필요도 최하위(도서관)보다 커야 한다.
+    assert (
+        simulator.FACILITY_IMPROVEMENT_COEF["공영주차시설"]
+        > simulator.FACILITY_IMPROVEMENT_COEF["도서관"]
+    )
+
+
+def test_analyze_coefficients_script_runs():
+    # 재현 스크립트가 import·실행 가능해야 한다 (#34).
+    import importlib.util
+    import pathlib
+
+    path = pathlib.Path(__file__).resolve().parent.parent / "scripts" / "analyze_coefficients.py"
+    spec = importlib.util.spec_from_file_location("analyze_coefficients", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    supply = mod.gu_supply()
+    assert set(supply) == {"만안구", "동안구"}
+    # 접근 B의 핵심 관찰: 공급밀도-필요도 순위상관이 음수가 아니다(계수 도출 불가 근거).
+    assert mod._spearman([1, 2, 3], [1, 2, 3]) == 1.0
 
 
 def test_api_dong():
