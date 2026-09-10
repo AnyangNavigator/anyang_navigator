@@ -56,6 +56,49 @@ def load_dissatisfaction_reasons() -> pd.DataFrame:
     return _read_csv("survey_16-3_dissatisfaction_reasons.csv").set_index("region")
 
 
+@lru_cache
+def load_housing_age() -> pd.DataFrame:
+    """행정동별 30년이상 노후주택 수·총주택 수·비율 (SGIS, 2024. #61).
+
+    시설 좌표가 아니라 SGIS가 이미 행정동 단위로 계산한 비율 지표라, facilities
+    REGISTRY(point-in-polygon)가 아니라 여기(사회조사와 같은 층위)에 붙인다.
+    """
+    return _read_csv("housing_age_by_dong.csv").set_index("dong")
+
+
+def dong_housing_age(dong_name: str) -> dict | None:
+    """동 하나의 노후주택 지표. 대시보드 동 카드용."""
+    df = load_housing_age()
+    if dong_name not in df.index:
+        return None
+    row = df.loc[dong_name]
+    return {
+        "old_house_cnt": int(row.old_house_cnt),
+        "total_house_cnt": int(row.total_house_cnt),
+        "old_house_ratio": float(row.old_house_ratio),
+        "base_year": int(row.base_year),
+    }
+
+
+def gu_housing_age() -> dict[str, dict[str, float]]:
+    """구별 노후주택 집계 (동별 호수를 합산해 비율 재계산). /about 서술용.
+
+    ⚠️ 결과는 통념과 반대 방향이다 — 동안구(평촌신도시 1992년 전후 입주)가
+    만안구보다 30년이상 주택 비율이 높다. `data/SOURCES.md` 해석 주의 참고.
+    """
+    df = load_housing_age()
+    out: dict[str, dict[str, float]] = {}
+    for gu, g in df.groupby("gu"):
+        old = int(g.old_house_cnt.sum())
+        total = int(g.total_house_cnt.sum())
+        out[gu] = {
+            "old_house_cnt": old,
+            "total_house_cnt": total,
+            "old_house_ratio": round(old / total * 100, 1) if total else 0.0,
+        }
+    return out
+
+
 def list_dong() -> list[DongInfo]:
     df = load_population()
     return [

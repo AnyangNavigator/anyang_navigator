@@ -80,6 +80,7 @@ def dashboard(request: Request, dong: str | None = None):
     facility_trends = data.all_facility_trends()
     supply_demand = gap.demand_supply_gaps()
     dong_supply = gap.dong_supply(selected_dong)
+    dong_housing_age = data.dong_housing_age(selected_dong)
     clustering = cluster.cluster_dong()
     map_metrics = facilities.metric_catalog()
 
@@ -96,6 +97,8 @@ def dashboard(request: Request, dong: str | None = None):
             "facility_trends": facility_trends,
             "supply_demand": supply_demand,
             "dong_supply": dong_supply,
+            "dong_housing_age": dong_housing_age,
+            "gu_housing_age": data.gu_housing_age(),
             "clustering": clustering,
             "map_metrics": map_metrics,
             "naver_map_client_id": NAVER_MAP_CLIENT_ID,
@@ -258,6 +261,7 @@ def api_dong(dong_name: str):
     return {
         "dong_stats": data.get_facility_density(dong_name),
         "gu_stats": data.get_gu_survey_snapshot(d.gu),
+        "housing_age": data.dong_housing_age(dong_name),
     }
 
 
