@@ -483,8 +483,8 @@ def test_chatbot_context_and_rule_answer_share_gap_numbers(monkeypatch):
     from app import chatbot
 
     manan, dongan, gap = chatbot._facility_gap("공영주차시설")
-    ctx = chatbot._build_context("주차시설은 어때?", "안양1동", "공영주차시설")
-    needed = ctx["문의 시설 필요도(구 단위, %)"]
+    ctx = chatbot._build_context("주차시설은 어때?", ["안양1동"], None, ["공영주차시설"])
+    needed = ctx["문의 시설"][0]["향후 필요 응답률(구 단위, %)"]
     assert (needed["만안구"], needed["동안구"]) == (manan, dongan)
     assert needed["격차(만안구-동안구, %p)"] == gap
 
@@ -492,6 +492,69 @@ def test_chatbot_context_and_rule_answer_share_gap_numbers(monkeypatch):
     ans = chatbot.answer("주차시설은 어때?", "안양1동")
     assert f"만안구 {manan}%" in ans and f"동안구 {dongan}%" in ans
     assert f"{gap:+.1f}%p" in ans
+
+
+def test_chatbot_context_includes_supply_trend_and_cluster(monkeypatch):
+    # #65: retrieval이 시설 현황(개소)·추세·군집·격차를 컨텍스트에 넣어야 한다.
+    from app import chatbot, facilities
+
+    ctx = chatbot._build_context("주차장 몇 개?", ["안양1동"], None, ["공영주차시설"])
+    entry = ctx["문의 시설"][0]
+    total_places = sum(
+        1 for f in facilities.load_facilities("parking") if f["dong"]
+    )
+    assert entry["시설 현황(개소)"]["안양시 전체"] == f"{total_places}개소"
+    assert "추세" in entry and "수요-공급 격차" in entry
+    assert "행정동 군집분석" in ctx  # 단일 동이면 군집 블록
+
+
+def test_chatbot_supply_data_reaches_rule_answer(monkeypatch):
+    # #65 회귀: "주차장 몇 개" 류 질문에 "데이터 없다"가 아니라 개소수로 답해야 한다.
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    from app import chatbot
+
+    ans = chatbot.answer("도서관 몇 개 있어?", "안양7동")
+    assert "11개소" in ans  # 안양시 전체
+    assert "안양7동에는 1개소" in ans
+
+
+def test_chatbot_gu_level_and_multi_facility(monkeypatch):
+    # #66: 구 이름만 있는 질문 / 시설 여러 개 질문을 처리해야 한다.
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    from app import chatbot
+
+    gu_ans = chatbot.answer("만안구는 전반적으로 어때?", None)
+    assert "만안구" in gu_ans and "필요" in gu_ans
+    assert "동/구 이름이나 시설 유형" not in gu_ans  # 무의미한 되돌림이 아님
+
+    multi = chatbot.answer("공원이랑 주차장 중 뭐가 급해?", None)
+    assert "공영주차시설" in multi and "공원녹지산책로" in multi
+
+
+def test_chatbot_simulation_and_no_bracket_tags(monkeypatch):
+    # #66: "N개 지으면" 질문에 시뮬레이션 결과, 그리고 규칙기반 답변에
+    # 대괄호 디버그 태그가 노출되지 않아야 한다.
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    from app import chatbot
+
+    ans = chatbot.answer("주차장 3개 지으면 격차 얼마나 줄어?", None)
+    assert "9.2%p" in ans  # 15.2 → 9.2
+    assert "[" not in ans and "]" not in ans
+
+
+def test_chat_api_invalid_dong_is_guidance_not_500(monkeypatch):
+    # #66 리뷰: current_dong은 클라이언트가 임의로 채우는 필드다. 존재하지 않는
+    # 동명이 와도 500이 아니라 200 + 정상 답변이어야 한다 (#9/#15 원칙).
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    res = client.post("/api/chat", json={"question": "주차장 어때?", "dong": "없는동"})
+    assert res.status_code == 200
+    ans = res.json()["answer"]
+    assert ans and "공영주차시설" in ans  # 시설 질문은 그대로 처리
+
+    from app import chatbot
+
+    # 위치도 시설도 못 잡는 질문 + 잘못된 dong → 안내 문구
+    assert "포함해" in chatbot.answer("안녕", "존재하지않는동")
 
 
 def test_api_dong_boundaries():
