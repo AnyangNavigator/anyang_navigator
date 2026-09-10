@@ -45,7 +45,8 @@
 │   ├── simulator.py                       ← What-if 시뮬레이터 로직 (양지마을 기본 시나리오 포함)
 │   ├── report.py                          ← LLM(OpenAI) 또는 규칙 기반 폴백 리포트 생성
 │   ├── chatbot.py                         ← 규칙 기반 챗봇 (구조화 쿼리)
-│   └── templates/                         ← Jinja2 + Tailwind CDN 템플릿
+│   ├── templates/                         ← Jinja2 + Tailwind 템플릿
+│   └── static/app.css                     ← 미리 빌드한 Tailwind CSS (scripts/build_css.md)
 ├── data/
 │   ├── SOURCES.md                         ← ★ 전체 데이터 출처·기준일·라이선스 표
 │   ├── population_by_dong.csv             ← 31개 행정동별 인구·세대 (행안부 주민등록인구통계, 2025.12.31)
@@ -64,7 +65,9 @@
 
 ## 실행 방법
 
-Node.js가 설치되어 있지 않은 환경이라 프론트엔드는 React 대신 **FastAPI + Jinja2 + Tailwind CDN** 단일 Python 스택으로 구현했습니다. 별도 빌드 과정 없이 바로 실행됩니다.
+Node.js가 설치되어 있지 않은 환경이라 프론트엔드는 React 대신 **FastAPI + Jinja2 + Tailwind** 단일 Python 스택으로 구현했습니다. 별도 빌드 과정 없이 바로 실행됩니다.
+
+Tailwind는 예전에 Play CDN(`cdn.tailwindcss.com`)을 썼지만, 브라우저가 런타임에 CSS를 만들고 콘솔에 프로덕션 경고가 떠서 **미리 빌드한 `app/static/app.css`(약 12KB)로 교체**했습니다(#60). 빌드는 Tailwind 독립 실행 바이너리로 하므로 **Node는 여전히 필요 없습니다.** 템플릿에 새 유틸리티 클래스를 추가했다면 [`scripts/build_css.md`](scripts/build_css.md) 절차로 재빌드해야 합니다 — 잊으면 스타일이 조용히 깨지는데, `test_builtin_css_covers_template_classes`가 CI에서 잡아줍니다.
 
 ```bash
 pip install -r requirements.txt

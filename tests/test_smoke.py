@@ -146,6 +146,54 @@ def test_cluster_features_are_ratios_not_raw_counts():
     assert total.between(0.99, 1.01).all()
 
 
+def test_builtin_css_covers_template_classes():
+    """템플릿이 쓰는 Tailwind 클래스가 빌드된 app.css에 전부 있는지 (#60).
+
+    app.css는 빌드 결과물을 커밋해 두는 방식이라, 템플릿에 새 유틸리티 클래스를
+    추가하고 재빌드를 잊으면 **스타일이 조용히 깨진다.** 실제로 이 PR이 #63·#64와
+    엇갈리며 flex-col·sm:flex-row·text-red-500 등이 빠진 채로 올라갔었다.
+    풀 빌드를 CI에 넣는 대신 이 검사로 회귀를 잡는다.
+
+    재빌드 방법은 scripts/build_css.md 참고.
+    """
+    import glob
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    css = (root / "app" / "static" / "app.css").read_text(encoding="utf-8")
+
+    jinja = re.compile(r"\{%.*?%\}|\{\{.*?\}\}", re.S)
+    # Tailwind 유틸리티처럼 생긴 토큰만 (Jinja 조각·JS 문자열 연결 결과를 걸러낸다)
+    token = re.compile(r"^[a-z][a-z0-9]*(?:[:/.-][a-z0-9.\[\]%/-]+)*$")
+    # 앱에서 직접 정의한 클래스 — Tailwind가 만들지 않으므로 검사 대상이 아니다.
+    app_defined = {"no-print", "rank-row", "r-region", "r-facility", "r-budget", "r-del"}
+
+    def selector(cls: str) -> str:
+        return "." + "".join("\\" + ch if ch in ":/.[]%!" else ch for ch in cls)
+
+    used: set[str] = set()
+    for path in glob.glob(str(root / "app" / "templates" / "*.html")):
+        html = jinja.sub(" ", Path(path).read_text(encoding="utf-8"))
+        for attr in re.finditer(r'class="([^"]*)"', html):
+            for cls in attr.group(1).split():
+                if token.match(cls) and cls not in app_defined:
+                    used.add(cls)
+
+    assert used, "템플릿에서 클래스를 하나도 못 찾았다 — 추출 로직 확인 필요"
+    missing = sorted(c for c in used if selector(c) not in css)
+    assert not missing, (
+        f"app.css에 없는 클래스 {len(missing)}개: {missing[:15]} — "
+        "scripts/build_css.md 절차로 재빌드 후 커밋하세요."
+    )
+
+
+def test_static_css_is_served():
+    res = client.get("/static/app.css")
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("text/css")
+
+
 def test_dashboard_default():
     res = client.get("/dashboard")
     assert res.status_code == 200
