@@ -64,6 +64,29 @@ def test_supply_by_dong_covers_all_31_dong():
         assert all(v >= 0 for v in metrics.values())
 
 
+def test_school_registry_covers_all_anyang_schools():
+    # #33 대중교통/학교 소싱 — 안양시분 86건(초41·중24·고21), 전부 매핑 성공.
+    rows = facilities.load_facilities("school")
+    assert len(rows) == 86
+    assert facilities.unmapped_ratio("school") == 0.0
+    by_level = {}
+    for f in rows:
+        level = f["raw"].get("학교급구분")
+        by_level[level] = by_level.get(level, 0) + 1
+    assert by_level == {"초등학교": 41, "중학교": 24, "고등학교": 21}
+
+
+def test_cluster_feature_labels_cover_every_registry_kind():
+    # cluster.feature_frame()이 facilities.REGISTRY의 모든 kind를 supply_<kind>
+    # 특징으로 자동 포함한다(app/cluster.py 참고). 라벨이 없으면 군집 특징에
+    # "supply_school" 같은 원시 키가 그대로 노출된다 — REGISTRY에 kind를 추가할
+    # 때마다 _FEATURE_LABEL도 같이 채워야 함을 여기서 강제한다.
+    from app.cluster import _FEATURE_LABEL
+
+    missing = [k for k in facilities.REGISTRY if f"supply_{k}" not in _FEATURE_LABEL]
+    assert not missing, f"_FEATURE_LABEL에 라벨이 없는 kind: {missing}"
+
+
 def test_hospital_excludes_closed_beds():
     # facilities_hospital.csv에는 폐업·전출 병원이 섞여 있다(47행 중 17행).
     # 병상 공급 집계에는 영업중 병원만 들어가야 한다 (#37 리뷰).
