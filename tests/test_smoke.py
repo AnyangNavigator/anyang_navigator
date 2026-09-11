@@ -146,6 +146,79 @@ def test_cluster_features_are_ratios_not_raw_counts():
     assert total.between(0.99, 1.01).all()
 
 
+def test_haversine_matches_known_distance():
+    from app import access
+
+    # 서울시청 - 부산시청 실측 거리 약 325km (#73).
+    d = access.haversine_m(37.5665, 126.9780, 35.1796, 129.0756)
+    assert 320_000 < d < 330_000
+    assert access.haversine_m(37.4, 126.9, 37.4, 126.9) == 0
+
+
+def test_dong_centroids_fall_inside_their_own_dong():
+    # 기하 중심점이 실제로 그 동 경계 안에 있어야 한다 — 계산이 틀리면 대부분
+    # 어긋난다(오목한 동 형태에서 드물게 밖으로 나갈 수 있으나 안양시 31개 동은
+    # 전부 안쪽에 있는 것으로 확인됨, #73).
+    from app import access, geo
+
+    for dong, (lat, lng) in access.dong_centroids().items():
+        assert geo.dong_for_point(lng, lat) == dong
+
+
+def test_accessibility_by_dong_covers_all_dong_and_kinds():
+    from app import access, facilities
+
+    for kind in facilities.REGISTRY:
+        scores = access.accessibility_by_dong(kind)
+        assert set(scores) == {d.dong for d in data.list_dong()}
+        assert all(v >= 0 for v in scores.values())
+    all_scores = access.accessibility_all()
+    for dong, scores in all_scores.items():
+        assert set(scores) == set(facilities.REGISTRY)
+
+
+def test_accessibility_reverses_density_direction_for_hospital_and_park():
+    # #73 핵심 발견: 병원·공원은 밀도(개소수)와 접근성(거리 반영)의 구별 우열이
+    # 반대로 나온다. 이 방향이 검증 없이 뒤집히면(예: 반경 계산 실수) 조용히
+    # 원래 결론으로 돌아가 버리니 회귀로 고정한다.
+    from app import access, facilities
+
+    pop = {d.dong: (d.gu, d.total_population) for d in data.list_dong()}
+
+    def gu_weighted_avg(scores: dict[str, float]) -> dict[str, float]:
+        totals = {"만안구": [0.0, 0], "동안구": [0.0, 0]}
+        for dong, value in scores.items():
+            gu, population = pop[dong]
+            totals[gu][0] += value * population
+            totals[gu][1] += population
+        return {gu: s / n for gu, (s, n) in totals.items()}
+
+    density = facilities.supply_by_dong()
+    for kind in ("hospital", "park"):
+        dens_gu = gu_weighted_avg({d: density[d][kind] for d in density})
+        acc_gu = gu_weighted_avg(access.accessibility_by_dong(kind))
+        dens_favors_manan = dens_gu["만안구"] > dens_gu["동안구"]
+        acc_favors_manan = acc_gu["만안구"] > acc_gu["동안구"]
+        assert dens_favors_manan != acc_favors_manan, f"{kind}: 밀도·접근성 방향이 같아짐 — 재검증 필요"
+
+
+def test_access_metric_catalog_and_map_layer_are_wired():
+    from app import access, facilities
+
+    catalog = access.access_metric_catalog()
+    assert {m["key"] for m in catalog} == {f"access_{k}" for k in facilities.REGISTRY}
+
+    res = client.get("/api/dong-boundaries")
+    body = res.json()
+    props = body["features"][0]["properties"]
+    for kind in facilities.REGISTRY:
+        assert f"access_{kind}" in props
+
+    dash = client.get("/dashboard")
+    assert "공간 접근성" in dash.text
+    assert "2SFCA" in dash.text
+
+
 def test_builtin_css_covers_template_classes():
     """템플릿이 쓰는 Tailwind 클래스가 빌드된 app.css에 전부 있는지 (#60).
 
