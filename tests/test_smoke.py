@@ -73,6 +73,29 @@ def test_bus_stop_registry_maps_nearly_all_stops():
     assert ratio < 0.02, f"예상보다 매핑 실패율이 높음: {ratio:.1%}"
 
 
+def test_school_registry_covers_all_anyang_schools():
+    # #33 대중교통/학교 소싱 — 안양시분 86건(초41·중24·고21), 전부 매핑 성공.
+    rows = facilities.load_facilities("school")
+    assert len(rows) == 86
+    assert facilities.unmapped_ratio("school") == 0.0
+    by_level = {}
+    for f in rows:
+        level = f["raw"].get("학교급구분")
+        by_level[level] = by_level.get(level, 0) + 1
+    assert by_level == {"초등학교": 41, "중학교": 24, "고등학교": 21}
+
+
+def test_cluster_feature_labels_cover_every_registry_kind():
+    # cluster.feature_frame()이 facilities.REGISTRY의 모든 kind를 supply_<kind>
+    # 특징으로 자동 포함한다(app/cluster.py 참고). 라벨이 없으면 군집 특징에
+    # "supply_school" 같은 원시 키가 그대로 노출된다 — REGISTRY에 kind를 추가할
+    # 때마다 _FEATURE_LABEL도 같이 채워야 함을 여기서 강제한다.
+    from app.cluster import _FEATURE_LABEL
+
+    missing = [k for k in facilities.REGISTRY if f"supply_{k}" not in _FEATURE_LABEL]
+    assert not missing, f"_FEATURE_LABEL에 라벨이 없는 kind: {missing}"
+
+
 def test_hospital_excludes_closed_beds():
     # facilities_hospital.csv에는 폐업·전출 병원이 섞여 있다(47행 중 17행).
     # 병상 공급 집계에는 영업중 병원만 들어가야 한다 (#37 리뷰).
@@ -221,6 +244,39 @@ def test_all_facility_trends_matches_needed_facilities_columns():
     assert set(trends.keys()) == set(data.load_needed_facilities().columns)
     for years in trends.values():
         assert set(years.keys()) == {"2021", "2023", "2025"}
+
+
+def test_housing_age_loader_covers_31_dong_and_arithmetic():
+    # #33: SGIS 노후주택 비율을 data.py 경로로 붙였다 (REGISTRY 아님).
+    df = data.load_housing_age()
+    assert set(df.index) == {d.dong for d in data.list_dong()}  # 31개 동
+    for dn in df.index:
+        r = data.dong_housing_age(dn)
+        assert r["old_house_cnt"] <= r["total_house_cnt"]
+        assert r["old_house_ratio"] == round(r["old_house_cnt"] / r["total_house_cnt"] * 100, 1)
+    assert data.dong_housing_age("존재하지않는동") is None
+
+
+def test_gu_housing_age_is_counterintuitive():
+    # #33 핵심 발견: 통념과 반대로 동안구(평촌신도시) 노후 비율 > 만안구.
+    # 이 방향이 뒤집히면 데이터·집계에 문제가 생긴 것이다.
+    g = data.gu_housing_age()
+    assert set(g) == {"만안구", "동안구"}
+    assert g["동안구"]["old_house_ratio"] > g["만안구"]["old_house_ratio"]
+    # 동별 합이 구 합과 일치
+    df = data.load_housing_age()
+    for gu in ("만안구", "동안구"):
+        sub = df[df["gu"] == gu]
+        assert g[gu]["old_house_cnt"] == int(sub["old_house_cnt"].sum())
+
+
+def test_dashboard_and_api_expose_housing_age():
+    res = client.get("/dashboard", params={"dong": "달안동"})
+    assert res.status_code == 200
+    assert "노후주택" in res.text
+    assert "통념과 반대" in res.text  # 해석 주의가 함께 렌더돼야 한다
+    api = client.get("/api/dong/달안동").json()
+    assert api["housing_age"]["old_house_ratio"] == 100.0
 
 
 def test_dashboard_with_dong_query():

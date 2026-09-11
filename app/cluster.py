@@ -129,8 +129,9 @@ _FEATURE_LABEL = {
     "supply_hospital": "병상",
     "supply_pharmacy": "약국",
     "supply_bus_stop": "버스정류장",
-    # large_store·market은 #56에서 REGISTRY에 들어왔지만 라벨이 누락돼 특징으로
-    # 뽑히면 "supply_market" 같은 원시 키가 그대로 노출됐다(이 PR에서 실제로 재현 확인).
+    # large_store·market은 #56에서 REGISTRY에 들어왔지만 여기 라벨이 누락돼
+    # 특징으로 뽑히면 "supply_large_store" 같은 원시 키가 그대로 노출되고 있었다.
     "supply_large_store": "대규모점포",
     "supply_market": "전통시장",
+    "supply_school": "학교",
 }
