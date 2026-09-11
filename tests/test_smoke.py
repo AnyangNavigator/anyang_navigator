@@ -64,6 +64,15 @@ def test_supply_by_dong_covers_all_31_dong():
         assert all(v >= 0 for v in metrics.values())
 
 
+def test_bus_stop_registry_maps_nearly_all_stops():
+    # #33 대중교통 소싱 — 전국 파일에서 도시명='경기도 안양시'로만 필터한 773건.
+    # 경계 인근 소수(0.4%)만 매핑 실패, 기본 10% 가드 이내여야 한다.
+    rows = facilities.load_facilities("bus_stop")
+    assert len(rows) == 773
+    ratio = facilities.unmapped_ratio("bus_stop")
+    assert ratio < 0.02, f"예상보다 매핑 실패율이 높음: {ratio:.1%}"
+
+
 def test_hospital_excludes_closed_beds():
     # facilities_hospital.csv에는 폐업·전출 병원이 섞여 있다(47행 중 17행).
     # 병상 공급 집계에는 영업중 병원만 들어가야 한다 (#37 리뷰).

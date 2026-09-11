@@ -61,6 +61,7 @@ REGISTRY: dict[str, FacilitySpec] = {
         exclude_name_pattern="시장|상가", name_col="bizplc_nm", max_unmapped=0.15,
     ),
     "market": FacilitySpec("market", "facilities_market.csv", "LATITUDE", "LONGITUDE", None, "전통시장", "개소"),
+    "bus_stop": FacilitySpec("bus_stop", "facilities_bus_stop.csv", "위도", "경도", None, "버스정류장", "개소"),
 }
 
 
