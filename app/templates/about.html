@@ -68,6 +68,18 @@
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+  <h2 class="text-sm font-semibold text-slate-500 mb-3">3-2. 노후주택 비율 — 양적 지표의 한계 사례</h2>
+  <p class="text-sm text-slate-600 mb-2">SGIS Open API에서 31개 행정동 전부의 <strong>준공 30년 이상 주택 수 / 총주택 수 / 비율</strong>을 받았습니다(「인구주택총조사」 기반, 2024). 대시보드 동 카드에 표시됩니다.</p>
+  <p class="text-sm text-slate-600 mb-2"><strong>결과가 통념과 반대입니다.</strong> 구 평균 <strong>동안구 42.2%(46,279/109,699호) &gt; 만안구 25.9%(19,261/74,287호)</strong>이고, 노후 비율 상위 7개 동이 전부 동안구입니다(달안동 100.0%, 부흥동 99.9%, 평안동 88.4%, 범계동 88.2% …).</p>
+  <ul class="text-xs text-slate-500 space-y-1 list-disc pl-5">
+    <li><strong>데이터 오류가 아닙니다.</strong> 평촌신도시가 1992년 전후 입주라 2024년 기준 이미 30년을 넘겼습니다. 「아파트 현황」 주제도로 교차검증하니 달안동·부흥동은 총주택 = 아파트 100%인 단일세대 단지라 수치가 맞습니다. 반대로 만안구는 재개발·재건축 신축이 섞여 비율이 내려갑니다(안양1동 1.6%).</li>
+    <li>즉 <strong>"준공 후 30년"이라는 단일 임계값은 물리적 노후도·주거환경 쇠퇴를 대변하지 못합니다.</strong> 관리된 대단지 아파트와 원도심의 저층 노후 단독·다세대를 같은 값으로 세기 때문입니다. 이 수치를 "만안구가 낙후했다"는 근거로 쓰면 데이터가 정반대를 말합니다.</li>
+    <li>이는 3절의 <strong>공급밀도–필요도 순위상관 ρ ≈ +0.59</strong>(기대와 반대 부호)와 같은 계열의 발견입니다 — <strong>양적 지표만으로는 원도심 쇠퇴가 잡히지 않습니다.</strong> 쇠퇴 진단에는 주택 유형(단독·다세대 vs 아파트)이나 관리 상태를 함께 봐야 합니다.</li>
+    <li>출처·해석 주의 전문: <code>data/SOURCES.md</code>. 로더: <code>app/data.py</code>의 <code>load_housing_age</code>.</li>
+  </ul>
+</section>
+
+<section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
   <h2 class="text-sm font-semibold text-slate-500 mb-1">4. What-if 시뮬레이터의 가정 계수</h2>
   <p class="text-xs text-amber-600 mb-3">⚠️ 아래 값은 실측이 아닌 <strong>탄력성 가정값</strong>입니다. 실제 시설 확충 후 필요도 응답률 변화를 추적한 데이터가 아니며, 정책 우선순위를 <em>논의</em>하기 위한 의사결정 보조 수치입니다.</p>
   <div class="overflow-x-auto">

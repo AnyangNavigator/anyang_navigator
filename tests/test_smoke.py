@@ -214,6 +214,39 @@ def test_all_facility_trends_matches_needed_facilities_columns():
         assert set(years.keys()) == {"2021", "2023", "2025"}
 
 
+def test_housing_age_loader_covers_31_dong_and_arithmetic():
+    # #33: SGIS 노후주택 비율을 data.py 경로로 붙였다 (REGISTRY 아님).
+    df = data.load_housing_age()
+    assert set(df.index) == {d.dong for d in data.list_dong()}  # 31개 동
+    for dn in df.index:
+        r = data.dong_housing_age(dn)
+        assert r["old_house_cnt"] <= r["total_house_cnt"]
+        assert r["old_house_ratio"] == round(r["old_house_cnt"] / r["total_house_cnt"] * 100, 1)
+    assert data.dong_housing_age("존재하지않는동") is None
+
+
+def test_gu_housing_age_is_counterintuitive():
+    # #33 핵심 발견: 통념과 반대로 동안구(평촌신도시) 노후 비율 > 만안구.
+    # 이 방향이 뒤집히면 데이터·집계에 문제가 생긴 것이다.
+    g = data.gu_housing_age()
+    assert set(g) == {"만안구", "동안구"}
+    assert g["동안구"]["old_house_ratio"] > g["만안구"]["old_house_ratio"]
+    # 동별 합이 구 합과 일치
+    df = data.load_housing_age()
+    for gu in ("만안구", "동안구"):
+        sub = df[df["gu"] == gu]
+        assert g[gu]["old_house_cnt"] == int(sub["old_house_cnt"].sum())
+
+
+def test_dashboard_and_api_expose_housing_age():
+    res = client.get("/dashboard", params={"dong": "달안동"})
+    assert res.status_code == 200
+    assert "노후주택" in res.text
+    assert "통념과 반대" in res.text  # 해석 주의가 함께 렌더돼야 한다
+    api = client.get("/api/dong/달안동").json()
+    assert api["housing_age"]["old_house_ratio"] == 100.0
+
+
 def test_dashboard_with_dong_query():
     res = client.get("/dashboard", params={"dong": "평촌동"})
     assert res.status_code == 200
