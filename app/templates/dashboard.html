@@ -40,6 +40,23 @@
     <p class="text-xs text-slate-400 mt-2">※ 공공·등록 시설만 집계 (민간 부설주차장·의원 등 제외)</p>
     {% endif %}
 
+    {% if dong_housing_age %}
+    <p class="text-xs text-slate-500 font-semibold mt-4 mb-2">노후주택 (준공 30년 이상, {{ dong_housing_age.base_year }})</p>
+    <dl class="grid grid-cols-2 gap-y-2 text-sm">
+      <dt class="text-slate-500">{{ density.dong }} 비율</dt>
+      <dd class="font-semibold">{{ dong_housing_age.old_house_ratio }}%
+        <span class="text-xs font-normal text-slate-400">({{ "{:,}".format(dong_housing_age.old_house_cnt) }}/{{ "{:,}".format(dong_housing_age.total_house_cnt) }}호)</span></dd>
+      <dt class="text-slate-500">{{ density.gu }} 평균</dt>
+      <dd class="font-semibold">{{ gu_housing_age[density.gu].old_house_ratio }}%</dd>
+    </dl>
+    <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+      ※ <strong>구 평균은 동안구 {{ gu_housing_age["동안구"].old_house_ratio }}% &gt; 만안구 {{ gu_housing_age["만안구"].old_house_ratio }}%</strong> — 통념과 반대입니다.
+      평촌신도시가 1992년 전후 입주라 이미 30년을 넘겼기 때문으로, "준공 후 30년"이라는 단일 임계값은
+      관리된 대단지 아파트와 원도심 저층 노후 단독·다세대를 같은 값으로 세어 물리적 노후도를 대변하지 못합니다.
+      쇠퇴 진단에는 주택 유형·관리 상태를 함께 봐야 합니다 (<code>data/SOURCES.md</code>).
+    </p>
+    {% endif %}
+
     {% if dong_access %}
     <p class="text-xs text-slate-500 font-semibold mt-4 mb-2">공간 접근성 (2SFCA — 거리 반영)</p>
     <dl class="grid grid-cols-2 gap-y-2 text-sm">
