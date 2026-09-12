@@ -61,6 +61,7 @@ REGISTRY: dict[str, FacilitySpec] = {
         exclude_name_pattern="시장|상가", name_col="bizplc_nm", max_unmapped=0.15,
     ),
     "market": FacilitySpec("market", "facilities_market.csv", "LATITUDE", "LONGITUDE", None, "전통시장", "개소"),
+    "bus_stop": FacilitySpec("bus_stop", "facilities_bus_stop.csv", "위도", "경도", None, "버스정류장", "개소"),
     # 원본은 전국 학교 표준데이터라 폐교도 섞일 수 있음(현재 안양시분 86건은 전부 운영중이나
     # 재추출 시 대비해 상태 필터를 걸어 둔다). 컬럼명은 원본 그대로(한글) 보존.
     "school": FacilitySpec(

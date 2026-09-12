@@ -64,6 +64,15 @@ def test_supply_by_dong_covers_all_31_dong():
         assert all(v >= 0 for v in metrics.values())
 
 
+def test_bus_stop_registry_maps_nearly_all_stops():
+    # #33 대중교통 소싱 — 전국 파일에서 도시명='경기도 안양시'로만 필터한 773건.
+    # 경계 인근 소수(0.4%)만 매핑 실패, 기본 10% 가드 이내여야 한다.
+    rows = facilities.load_facilities("bus_stop")
+    assert len(rows) == 773
+    ratio = facilities.unmapped_ratio("bus_stop")
+    assert ratio < 0.02, f"예상보다 매핑 실패율이 높음: {ratio:.1%}"
+
+
 def test_school_registry_covers_all_anyang_schools():
     # #33 대중교통/학교 소싱 — 안양시분 86건(초41·중24·고21), 전부 매핑 성공.
     rows = facilities.load_facilities("school")
