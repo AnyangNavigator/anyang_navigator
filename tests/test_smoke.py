@@ -199,7 +199,10 @@ def test_builtin_css_covers_template_classes():
     # Tailwind 유틸리티처럼 생긴 토큰만 (Jinja 조각·JS 문자열 연결 결과를 걸러낸다)
     token = re.compile(r"^[a-z][a-z0-9]*(?:[:/.-][a-z0-9.\[\]%/-]+)*$")
     # 앱에서 직접 정의한 클래스 — Tailwind가 만들지 않으므로 검사 대상이 아니다.
-    app_defined = {"no-print", "rank-row", "r-region", "r-facility", "r-budget", "r-del"}
+    app_defined = {
+        "no-print", "rank-row", "r-region", "r-facility", "r-budget", "r-del",
+        "coef-cell", "unit-cost-cell",  # #75 가정 계수 표의 JS 훅 클래스
+    }
 
     def selector(cls: str) -> str:
         return "." + "".join("\\" + ch if ch in ":/.[]%!" else ch for ch in cls)
@@ -337,6 +340,80 @@ def test_simulator_custom_scenario():
         data={"region": "동안구", "facility": "도서관", "num_facilities": "2"},
     )
     assert res.status_code == 200
+
+
+def test_simulate_custom_coef_and_unit_cost_override_defaults():
+    # #75: 사용자가 계수·단가를 직접 넣으면 기본 가정값 대신 그 값을 써야 한다.
+    default = simulator.simulate(region="만안구", facility="공영주차시설", num_facilities=2)
+    assert default.custom_assumptions is False
+    assert default.coef_used == simulator.FACILITY_IMPROVEMENT_COEF["공영주차시설"]
+
+    custom = simulator.simulate(
+        region="만안구", facility="공영주차시설", num_facilities=2, coef=5.0
+    )
+    assert custom.custom_assumptions is True
+    assert custom.coef_used == 5.0
+    assert custom.estimated_reduction == 10.0  # 5.0 * 2개소, 기본(2.0*2=4.0)과 다름
+    assert "사용자 지정" in custom.assumption_note
+    assert "기본값은" in custom.assumption_note  # 원래 가정값도 함께 안내
+
+    # unit_cost override는 budget → 개소수 환산에 반영돼야 한다.
+    cheap = simulator.simulate(
+        region="만안구", facility="공영주차시설", budget=1_000_000_000, unit_cost=200_000_000
+    )
+    assert cheap.num_facilities == 5  # 10억 / 2억
+
+
+def test_simulate_rejects_invalid_custom_assumptions():
+    # 음수 계수·0 이하 단가는 물리적으로 무의미하다.
+    for kwargs in ({"coef": -1}, {"unit_cost": 0}):
+        try:
+            simulator.simulate(region="만안구", facility="공영주차시설", num_facilities=1, **kwargs)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"{kwargs}는 ValueError를 내야 한다")
+    # 계수 0은 유효 — "이 시설은 체감 효과가 거의 없다"도 정당한 가정.
+    zero = simulator.simulate(region="만안구", facility="공영주차시설", num_facilities=3, coef=0)
+    assert zero.estimated_reduction == 0.0 and zero.custom_assumptions is True
+
+
+def test_simulator_page_exposes_editable_assumption_table():
+    res = client.get("/simulator")
+    assert res.status_code == 200
+    assert 'name="coef"' in res.text and 'name="unit_cost"' in res.text
+    assert "가정 계수 직접 입력" in res.text
+    # 시설 9종 전부 편집 가능한 행으로 나와야 한다 (#75 재요청 — 표 전체 입력).
+    for f in simulator.FACILITY_IMPROVEMENT_COEF:
+        assert f'data-facility-row="{f}"' in res.text
+    assert 'class="coef-cell' in res.text and 'class="unit-cost-cell' in res.text
+
+
+def test_simulator_post_with_custom_coef_shows_badge_and_updates_report():
+    res = client.post(
+        "/simulator",
+        data={"region": "만안구", "facility": "공영주차시설", "num_facilities": "2", "coef": "5.0"},
+    )
+    assert res.status_code == 200
+    assert "사용자 지정 계수" in res.text
+    assert "coef=5.0" in res.text  # 브리핑 링크에 그대로 실려야 화면·인쇄본이 안 어긋난다
+
+
+def test_api_simulate_with_custom_assumptions():
+    res = client.post(
+        "/api/simulate",
+        json={
+            "region": "만안구",
+            "facility": "공영주차시설",
+            "num_facilities": 2,
+            "coef": 5.0,
+        },
+    )
+    assert res.status_code == 200
+    result = res.json()["result"]
+    assert result["custom_assumptions"] is True
+    assert result["coef_used"] == 5.0
+    assert result["estimated_reduction"] == 10.0
 
 
 def test_simulator_invalid_facility_shows_error_not_crash():

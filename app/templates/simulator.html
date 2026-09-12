@@ -37,6 +37,43 @@
     <div>
       <button class="w-full bg-slate-800 text-white px-3 py-2 rounded-md hover:bg-slate-900">시뮬레이션 실행</button>
     </div>
+
+    <details class="sm:col-span-4 text-xs text-slate-500" open>
+      <summary class="cursor-pointer select-none hover:text-slate-700">가정 계수 직접 입력 — 아래 표를 고치면 실행 시 그대로 반영됩니다</summary>
+      <div class="overflow-x-auto mt-2">
+        <table class="w-full text-xs border-collapse">
+          <thead>
+            <tr class="text-left text-slate-500 border-b border-slate-200">
+              <th class="py-1.5 pr-3">시설 유형</th>
+              <th class="py-1.5 pr-3">1개소당 필요도 감소(%p)</th>
+              <th class="py-1.5 pr-3">1개소당 사업비(원)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for f in facility_list %}
+            <tr data-facility-row="{{ f }}">
+              <td class="py-1.5 pr-3 whitespace-nowrap">{{ f }}</td>
+              <td class="py-1.5 pr-3">
+                <input type="number" step="0.1" min="0" class="coef-cell w-24 border border-slate-300 rounded-md px-2 py-1"
+                  value="{{ form.coef if (form.facility == f and form.coef is not none) else coef_defaults[f] }}">
+              </td>
+              <td class="py-1.5 pr-3">
+                <input type="number" step="1000000" min="1" class="unit-cost-cell w-36 border border-slate-300 rounded-md px-2 py-1"
+                  value="{{ form.unit_cost if (form.facility == f and form.unit_cost is not none) else unit_cost_defaults[f] }}">
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <input type="hidden" name="coef" id="coefInput">
+      <input type="hidden" name="unit_cost" id="unitCostInput">
+      <p class="mt-2 text-slate-400 leading-relaxed">
+        <code>/about</code> 4절과 같은 기본값입니다(근거: <code>docs/COEFFICIENTS.md</code>). 숫자를 바꾸면
+        <strong>이 페이지에 있는 동안만</strong> 시뮬레이션에 쓰입니다 — 저장되지 않으니 새로고침하면 기본값으로
+        돌아갑니다. 위 "시설 유형" 선택에 맞는 줄(파란 배경)의 값이 실행 시 적용됩니다.
+      </p>
+    </details>
   </form>
 </div>
 
@@ -72,8 +109,45 @@
 (function () {
   var GU_LIST = {{ gu_list | tojson }};
   var FACILITY_LIST = {{ facility_list | tojson }};
+  var COEF_DEFAULT = {{ coef_defaults | tojson }};
+  var UNIT_COST_DEFAULT = {{ unit_cost_defaults | tojson }};
   var rowsEl = document.getElementById("rank-rows");
   var errEl = document.getElementById("rank-error");
+
+  // 가정 계수 표(시설 9종 전부 편집 가능) → 선택된 시설 줄만 하이라이트하고,
+  // 그 값이 기본값과 다를 때만 hidden coef/unit_cost에 실어 보낸다(#75).
+  // 저장하지 않음 — 새로고침하면 서버가 다시 기본값으로 렌더한다.
+  var facilitySelect = document.querySelector('select[name="facility"]');
+  var coefHiddenInput = document.getElementById("coefInput");
+  var unitCostHiddenInput = document.getElementById("unitCostInput");
+  var facilityRows = {};
+  var rowEls = document.querySelectorAll("[data-facility-row]");
+  for (var ri = 0; ri < rowEls.length; ri++) {
+    facilityRows[rowEls[ri].getAttribute("data-facility-row")] = rowEls[ri];
+  }
+  function syncAssumptionTable() {
+    if (!facilitySelect) return;
+    var selected = facilitySelect.value;
+    for (var name in facilityRows) {
+      if (Object.prototype.hasOwnProperty.call(facilityRows, name)) {
+        facilityRows[name].classList.toggle("bg-blue-50", name === selected);
+      }
+    }
+    var row = facilityRows[selected];
+    if (!row) return;
+    var coefVal = parseFloat(row.querySelector(".coef-cell").value);
+    var unitCostVal = parseFloat(row.querySelector(".unit-cost-cell").value);
+    coefHiddenInput.value = coefVal === COEF_DEFAULT[selected] ? "" : coefVal;
+    unitCostHiddenInput.value = unitCostVal === UNIT_COST_DEFAULT[selected] ? "" : unitCostVal;
+  }
+  if (facilitySelect) {
+    facilitySelect.addEventListener("change", syncAssumptionTable);
+  }
+  var cellInputs = document.querySelectorAll(".coef-cell, .unit-cost-cell");
+  for (var ci = 0; ci < cellInputs.length; ci++) {
+    cellInputs[ci].addEventListener("input", syncAssumptionTable);
+  }
+  syncAssumptionTable();
 
   function opts(values, selected) {
     return values.map(function (v) {
@@ -183,7 +257,9 @@
 {% if result %}
 <div class="bg-white rounded-xl border border-slate-200 p-5">
   <div class="flex items-center justify-between mb-4">
-    <h2 class="text-sm font-semibold text-slate-500">시뮬레이션 결과 — {{ result.region }} · {{ result.facility }} {{ result.num_facilities }}개소</h2>
+    <h2 class="text-sm font-semibold text-slate-500">시뮬레이션 결과 — {{ result.region }} · {{ result.facility }} {{ result.num_facilities }}개소
+      {% if result.custom_assumptions %}<span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-normal align-middle">사용자 지정 계수</span>{% endif %}
+    </h2>
     {% if brief_query %}
     <a href="/simulator/brief{{ brief_query }}" target="_blank"
       class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700 whitespace-nowrap">정책 브리핑 (인쇄용)</a>
