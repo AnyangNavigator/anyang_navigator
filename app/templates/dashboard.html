@@ -56,6 +56,22 @@
       쇠퇴 진단에는 주택 유형·관리 상태를 함께 봐야 합니다 (<code>data/SOURCES.md</code>).
     </p>
     {% endif %}
+
+    {% if dong_access %}
+    <p class="text-xs text-slate-500 font-semibold mt-4 mb-2">공간 접근성 (2SFCA — 거리 반영)</p>
+    <dl class="grid grid-cols-2 gap-y-2 text-sm">
+      {% for kind, s in dong_access.items() %}
+      <dt class="text-slate-500">{{ s.label }} <span class="text-slate-400">({{ (s.radius_m / 1000) | round(1) }}km)</span></dt>
+      <dd class="font-semibold">{{ s.value }} <span class="text-xs font-normal text-slate-400">{{ s.per }}</span></dd>
+      {% endfor %}
+    </dl>
+    <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+      ※ "개소수/인구"가 아니라 <strong>거리(2단계 흡수권역법·2SFCA)</strong>를 반영한 지표입니다. 동 인구는
+      경계의 기하 중심점에 있다고 근사하며, 시설 유형별 반경은 가정값입니다(<code>docs/METRICS.md</code>).
+      병원·공원은 이 지표로 보면 <strong>단순 개소수와 순위가 뒤바뀝니다</strong> — 개소가 많아도 거리가 멀면
+      실제 접근성은 낮을 수 있습니다.
+    </p>
+    {% endif %}
   </section>
 
   <section class="bg-white rounded-xl border border-slate-200 p-5">

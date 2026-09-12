@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from . import cluster, data, facilities, gap, report, simulator
+from . import access, cluster, data, facilities, gap, report, simulator
 from .chatbot import answer as chatbot_answer
 
 app = FastAPI(title="안양 균형발전 내비게이터")
@@ -80,9 +80,10 @@ def dashboard(request: Request, dong: str | None = None):
     facility_trends = data.all_facility_trends()
     supply_demand = gap.demand_supply_gaps()
     dong_supply = gap.dong_supply(selected_dong)
+    dong_access = access.dong_access(selected_dong)
     dong_housing_age = data.dong_housing_age(selected_dong)
     clustering = cluster.cluster_dong()
-    map_metrics = facilities.metric_catalog()
+    map_metrics = facilities.metric_catalog() + access.access_metric_catalog()
 
     return templates.TemplateResponse(
         request,
@@ -97,6 +98,7 @@ def dashboard(request: Request, dong: str | None = None):
             "facility_trends": facility_trends,
             "supply_demand": supply_demand,
             "dong_supply": dong_supply,
+            "dong_access": dong_access,
             "dong_housing_age": dong_housing_age,
             "gu_housing_age": data.gu_housing_age(),
             "clustering": clustering,
@@ -258,9 +260,8 @@ def simulator_brief(
 @lru_cache
 def _boundaries_payload() -> tuple[bytes, str]:
     """직렬화된 경계 GeoJSON 본문과 ETag. 경계·지표는 배포 중 안 바뀌므로 1회만 계산한다."""
-    body = json.dumps(
-        facilities.boundaries_with_metrics(), ensure_ascii=False, separators=(",", ":")
-    ).encode("utf-8")
+    geojson = access.boundaries_with_access(facilities.boundaries_with_metrics())
+    body = json.dumps(geojson, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     etag = f'"{hashlib.md5(body).hexdigest()}"'  # noqa: S324 — 캐시 검증용, 보안 용도 아님
     return body, etag
 
@@ -269,8 +270,9 @@ def _boundaries_payload() -> tuple[bytes, str]:
 def api_dong_boundaries(request: Request):
     """안양시 31개 행정동 경계 GeoJSON — 대시보드 choropleth 지도용.
 
-    properties에 동별 인구(`total_population`)와 공급 지표(`supply_*`, #37 규격)가
-    함께 실린다. 지도 지표 토글이 이 한 번의 응답으로 레이어를 바꾼다.
+    properties에 동별 인구(`total_population`), 공급 지표(`supply_*`, #37 규격),
+    공간 접근성 지표(`access_*`, 2SFCA — #73)가 함께 실린다. 지도 지표 토글이
+    이 한 번의 응답으로 레이어를 바꾼다.
 
     ~300KB로 매 대시보드 로드마다 재요청되므로(#59) `Cache-Control`(1일)과
     `ETag`를 붙여 재방문·동 전환 시 브라우저 캐시/304로 재사용되게 한다.
