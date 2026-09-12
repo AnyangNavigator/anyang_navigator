@@ -106,22 +106,28 @@ def dashboard(request: Request, dong: str | None = None):
     )
 
 
+def _simulator_context(**overrides) -> dict:
+    """simulator.html 렌더에 공통으로 필요한 컨텍스트. 페이지마다 다른 값만 override."""
+    ctx = {
+        "active": "simulator",
+        "scenarios": simulator.SCENARIOS,
+        "gu_list": data.GU_LIST,
+        "facility_list": list(simulator.FACILITY_IMPROVEMENT_COEF.keys()),
+        # 사용자 정의 폼의 "가정 계수 직접 입력" 필드가 기본값을 안내하는 데 쓴다 (#75).
+        "coef_defaults": simulator.FACILITY_IMPROVEMENT_COEF,
+        "unit_cost_defaults": simulator.FACILITY_UNIT_COST,
+        "form": {},
+        "result": None,
+        "report": None,
+        "error": None,
+    }
+    ctx.update(overrides)
+    return ctx
+
+
 @app.get("/simulator")
 def simulator_page(request: Request):
-    return templates.TemplateResponse(
-        request,
-        "simulator.html",
-        {
-            "active": "simulator",
-            "scenarios": simulator.SCENARIOS,
-            "gu_list": data.GU_LIST,
-            "facility_list": list(simulator.FACILITY_IMPROVEMENT_COEF.keys()),
-            "form": {},
-            "result": None,
-            "report": None,
-            "error": None,
-        },
-    )
+    return templates.TemplateResponse(request, "simulator.html", _simulator_context())
 
 
 def _resolve_scenario(
@@ -130,8 +136,14 @@ def _resolve_scenario(
     facility: str | None,
     num_facilities: int | None,
     budget: float | None = None,
+    coef: float | None = None,
+    unit_cost: float | None = None,
 ) -> tuple[dict, simulator.SimulationResult]:
-    """폼/쿼리 입력을 (시나리오 dict, 시뮬레이션 결과)로 변환. ValueError는 호출부에서 처리."""
+    """폼/쿼리 입력을 (시나리오 dict, 시뮬레이션 결과)로 변환. ValueError는 호출부에서 처리.
+
+    coef/unit_cost는 사용자 정의 시나리오에서만 의미가 있다 — 프리셋 시나리오(양지마을
+    등)는 그 시나리오가 정의한 값을 그대로 쓴다(#75).
+    """
     if scenario_id:
         return simulator.run_scenario(scenario_id)
     scenario = {
@@ -139,7 +151,12 @@ def _resolve_scenario(
         "description": f"{region}에 {facility} {num_facilities or ''}개소를 신규 공급하는 시나리오.",
     }
     result = simulator.simulate(
-        region=region, facility=facility, num_facilities=num_facilities, budget=budget
+        region=region,
+        facility=facility,
+        num_facilities=num_facilities,
+        budget=budget,
+        coef=coef,
+        unit_cost=unit_cost,
     )
     return scenario, result
 
@@ -151,24 +168,28 @@ def simulator_submit(
     region: str | None = Form(None),
     facility: str | None = Form(None),
     num_facilities: int | None = Form(None),
+    coef: float | None = Form(None),
+    unit_cost: float | None = Form(None),
 ):
     try:
-        scenario, result = _resolve_scenario(scenario_id, region, facility, num_facilities)
+        scenario, result = _resolve_scenario(
+            scenario_id, region, facility, num_facilities, coef=coef, unit_cost=unit_cost
+        )
         report_text = report.generate_scenario_report(scenario, result)
     except ValueError as e:
         return templates.TemplateResponse(
             request,
             "simulator.html",
-            {
-                "active": "simulator",
-                "scenarios": simulator.SCENARIOS,
-                "gu_list": data.GU_LIST,
-                "facility_list": list(simulator.FACILITY_IMPROVEMENT_COEF.keys()),
-                "form": {"region": region, "facility": facility, "num_facilities": num_facilities},
-                "result": None,
-                "report": None,
-                "error": str(e),
-            },
+            _simulator_context(
+                form={
+                    "region": region,
+                    "facility": facility,
+                    "num_facilities": num_facilities,
+                    "coef": coef,
+                    "unit_cost": unit_cost,
+                },
+                error=str(e),
+            ),
         )
 
     brief_query = (
@@ -176,20 +197,24 @@ def simulator_submit(
         if scenario_id
         else f"?region={result.region}&facility={result.facility}&num_facilities={result.num_facilities}"
     )
+    if result.custom_assumptions:
+        # 브리핑 페이지도 같은 사용자 지정 계수로 재계산해야 화면과 인쇄본이 어긋나지 않는다.
+        brief_query += f"&coef={result.coef_used}&unit_cost={result.unit_cost_used}"
     return templates.TemplateResponse(
         request,
         "simulator.html",
-        {
-            "active": "simulator",
-            "scenarios": simulator.SCENARIOS,
-            "gu_list": data.GU_LIST,
-            "facility_list": list(simulator.FACILITY_IMPROVEMENT_COEF.keys()),
-            "form": {"region": result.region, "facility": result.facility, "num_facilities": result.num_facilities},
-            "result": result,
-            "report": report_text,
-            "brief_query": brief_query,
-            "error": None,
-        },
+        _simulator_context(
+            form={
+                "region": result.region,
+                "facility": result.facility,
+                "num_facilities": result.num_facilities,
+                "coef": coef,
+                "unit_cost": unit_cost,
+            },
+            result=result,
+            report=report_text,
+            brief_query=brief_query,
+        ),
     )
 
 
@@ -201,10 +226,14 @@ def simulator_brief(
     facility: str | None = None,
     num_facilities: int | None = None,
     budget: float | None = None,
+    coef: float | None = None,
+    unit_cost: float | None = None,
 ):
     """시뮬레이션 결과를 인쇄·PDF용 정책 브리핑 한 장으로 렌더한다 (발전 가능성 — 행정 활용)."""
     try:
-        scenario, result = _resolve_scenario(scenario_id, region, facility, num_facilities, budget)
+        scenario, result = _resolve_scenario(
+            scenario_id, region, facility, num_facilities, budget, coef, unit_cost
+        )
         report_text = report.generate_scenario_report(scenario, result)
     except ValueError as e:
         return templates.TemplateResponse(
@@ -302,6 +331,8 @@ class SimulateRequest(BaseModel):
     facility: str
     num_facilities: int | None = None
     budget: float | None = None
+    coef: float | None = None  # 기본 가정값 대신 쓸 계수 (#75)
+    unit_cost: float | None = None  # 기본 가정값 대신 쓸 1개소당 사업비 (#75)
 
 
 @app.post("/api/simulate")
@@ -312,6 +343,8 @@ def api_simulate(payload: SimulateRequest):
             facility=payload.facility,
             num_facilities=payload.num_facilities,
             budget=payload.budget,
+            coef=payload.coef,
+            unit_cost=payload.unit_cost,
         )
     except ValueError as e:
         return {"error": str(e)}

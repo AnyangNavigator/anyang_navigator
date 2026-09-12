@@ -105,6 +105,7 @@
     </table>
   </div>
   <p class="text-xs text-slate-400 mt-3">시뮬레이터는 <code>감소폭 = 계수 × 개소수</code>로 계산하되, 격차가 뒤집히지 않도록 감소폭은 해당 구의 현재 응답률을 넘지 못하게 제한합니다. 예산을 입력하면 위 사업비로 개소수를 환산합니다.</p>
+  <p class="text-xs text-slate-500 mt-2">위 표의 값이 확정된 사실이 아니라 <strong>가정</strong>이라는 걸 실제로 체감할 수 있게, <a href="/simulator" class="text-blue-600 hover:underline">What-if 시뮬레이터</a>의 "사용자 정의 시나리오"에서 계수·사업비를 직접 입력해 재계산해볼 수 있습니다. 판단이 다르면 숫자를 바꿔 결과가 어떻게 달라지는지 직접 확인해보세요 — 결과 화면·정책 브리핑에 사용자 지정값임이 표시됩니다.</p>
   <div class="text-xs text-slate-500 mt-3 space-y-1 border-t border-slate-100 pt-3">
     <p class="font-semibold text-slate-600">도출 방법과 한계 (이슈 #34)</p>
     <p><strong>시도한 것.</strong> ① <em>밀도갭</em> — 행정동별 인구 1,000명당 시설 수(<code>facilities.supply_by_dong()</code>)를 구 단위로 모아 필요도와 비교. ② <em>추세</em> — 2021·2023·2025 안양시 전체 필요도 변화에서 1개소당 탄력성 역산.</p>

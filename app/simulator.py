@@ -121,6 +121,11 @@ class SimulationResult:
     # 시나리오일 때 채워지는 경고 문구(#9 A3). 정상 시나리오면 빈 문자열.
     adverse_warning: str = ""
     trend: dict[str, float] = field(default_factory=dict)
+    # 이번 계산에 실제로 쓰인 계수·단가. 사용자가 직접 안 넣었으면 기본 가정값과 같다.
+    coef_used: float = 0.0
+    unit_cost_used: float = 0.0
+    # 사용자가 계수·단가 중 하나라도 직접 지정했는지 (#75). UI가 "사용자 지정" 배지를 달 때 씀.
+    custom_assumptions: bool = False
 
 
 # 효율 지표를 "1억원당 예상 격차 감소폭(%p)"으로 환산하기 위한 단위.
@@ -137,32 +142,56 @@ class RankedScenario:
     error: str | None = None  # 이 시나리오만 계산 실패한 이유(예산 부족 등). #58
 
 
-def estimate_facility_count(facility: str, budget: float) -> int:
-    unit_cost = FACILITY_UNIT_COST.get(facility, FACILITY_UNIT_COST["기타"])
+def estimate_facility_count(facility: str, budget: float, unit_cost: float | None = None) -> int:
+    if unit_cost is None:
+        unit_cost = FACILITY_UNIT_COST.get(facility, FACILITY_UNIT_COST["기타"])
     if unit_cost <= 0:
         return 0
     return max(0, int(budget // unit_cost))
 
 
-def simulate(region: str, facility: str, num_facilities: int | None = None, budget: float | None = None) -> SimulationResult:
+def simulate(
+    region: str,
+    facility: str,
+    num_facilities: int | None = None,
+    budget: float | None = None,
+    coef: float | None = None,
+    unit_cost: float | None = None,
+) -> SimulationResult:
+    """`coef`/`unit_cost`를 넘기면 `/about` 4절의 기본 가정값 대신 그 값을 쓴다(#75).
+
+    가정값 자체가 실측이 아니라는 게 이 프로젝트의 핵심 전제(docs/COEFFICIENTS.md)라,
+    "이 계수가 맞다"고 확정하는 대신 사용자가 자기 판단으로 재계산해볼 수 있게 열어둔다.
+    두 값 다 음수는 무의미(계수는 감소폭, 단가는 금액)해서 막는다. 0은 허용 — "이 시설은
+    체감 효과가 거의 없다고 본다"는 것도 유효한 가정이다.
+    """
     if region not in data.GU_LIST:
         raise ValueError(f"region은 {data.GU_LIST} 중 하나여야 합니다: {region}")
     if facility not in FACILITY_IMPROVEMENT_COEF:
         raise ValueError(f"알 수 없는 시설 유형: {facility}")
+    if coef is not None and coef < 0:
+        raise ValueError(f"coef(1개소당 감소폭)는 0 이상이어야 합니다: {coef!r}")
+    if unit_cost is not None and unit_cost <= 0:
+        raise ValueError(f"unit_cost(1개소당 사업비)는 0보다 커야 합니다: {unit_cost!r}")
+
+    custom_assumptions = coef is not None or unit_cost is not None
+    coef = FACILITY_IMPROVEMENT_COEF[facility] if coef is None else coef
+    unit_cost_used = (
+        FACILITY_UNIT_COST.get(facility, FACILITY_UNIT_COST["기타"]) if unit_cost is None else unit_cost
+    )
 
     if num_facilities is None:
         if budget is None:
             raise ValueError("num_facilities 또는 budget 중 하나는 필요합니다.")
-        num_facilities = estimate_facility_count(facility, budget)
+        num_facilities = estimate_facility_count(facility, budget, unit_cost_used)
         # 예산이 1개소 사업비보다 작으면 estimate_facility_count()가 0을 돌려주고,
         # 그대로 두면 "모델이 효과 0이라고 봤다"는 오해를 준다(#9 A4). 예산
         # 부족임을 분명히 알린다. (num_facilities 직접 입력 경로의 0·음수는
         # 아래 A1 가드가 처리.)
         if num_facilities < 1:
-            unit_cost = FACILITY_UNIT_COST.get(facility, FACILITY_UNIT_COST["기타"])
             raise ValueError(
                 f"입력 예산({budget:,.0f}원)이 {facility} 1개소 사업비"
-                f"({unit_cost:,.0f}원)보다 작아 배치할 시설이 없습니다. "
+                f"({unit_cost_used:,.0f}원)보다 작아 배치할 시설이 없습니다. "
                 f"예산을 늘리거나 개소 수를 직접 입력하세요."
             )
 
@@ -177,7 +206,6 @@ def simulate(region: str, facility: str, num_facilities: int | None = None, budg
     dongan_current = float(needed.loc["동안구", facility])
     current_gap = round(manan_current - dongan_current, 1)
 
-    coef = FACILITY_IMPROVEMENT_COEF[facility]
     raw_reduction = coef * num_facilities
 
     # 감소폭 상한(#9 A2). 두 경우를 구분한다:
@@ -223,9 +251,16 @@ def simulate(region: str, facility: str, num_facilities: int | None = None, budg
         manan_projected=manan_projected,
         adverse_warning=adverse_warning,
         trend=data.facility_trend(facility),
+        coef_used=coef,
+        unit_cost_used=unit_cost_used,
+        custom_assumptions=custom_assumptions,
         assumption_note=(
-            f"가정: {facility} 신규 1개소당 '향후 필요' 응답률 -{coef}%p 감소. "
-            f"이 값은 실측 추적 데이터가 아닌 정책 논의용 추정치입니다."
+            f"가정({'사용자 지정' if custom_assumptions else '기본값'}): {facility} 신규 1개소당 "
+            f"'향후 필요' 응답률 -{coef}%p 감소, 1개소당 사업비 {unit_cost_used:,.0f}원. "
+            f"이 값은 실측 추적 데이터가 아닌 정책 논의용 추정치입니다"
+            + (f" (기본값은 -{FACILITY_IMPROVEMENT_COEF[facility]}%p, "
+               f"{FACILITY_UNIT_COST.get(facility, FACILITY_UNIT_COST['기타']):,.0f}원)."
+               if custom_assumptions else ".")
         ),
     )
 

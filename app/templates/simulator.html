@@ -37,6 +37,28 @@
     <div>
       <button class="w-full bg-slate-800 text-white px-3 py-2 rounded-md hover:bg-slate-900">시뮬레이션 실행</button>
     </div>
+
+    <details class="sm:col-span-4 text-xs text-slate-500" {% if form.coef or form.unit_cost %}open{% endif %}>
+      <summary class="cursor-pointer select-none hover:text-slate-700">고급: 가정 계수 직접 입력 (선택)</summary>
+      <div class="grid sm:grid-cols-2 gap-3 mt-2">
+        <div>
+          <label class="block mb-1">1개소당 필요도 감소(%p) <span id="coefHint" class="text-slate-400"></span></label>
+          <input type="number" step="0.1" min="0" name="coef" id="coefInput"
+            value="{{ form.coef if form.coef is not none else '' }}" placeholder="비우면 기본 가정값"
+            class="w-full border border-slate-300 rounded-md px-2 py-1.5">
+        </div>
+        <div>
+          <label class="block mb-1">1개소당 사업비(원) <span id="unitCostHint" class="text-slate-400"></span></label>
+          <input type="number" step="1000000" min="1" name="unit_cost" id="unitCostInput"
+            value="{{ form.unit_cost if form.unit_cost is not none else '' }}" placeholder="비우면 기본 가정값"
+            class="w-full border border-slate-300 rounded-md px-2 py-1.5">
+        </div>
+      </div>
+      <p class="mt-2 text-slate-400 leading-relaxed">
+        <code>/about</code> 4절의 계수·단가는 실측이 아닌 가정값입니다(<code>docs/COEFFICIENTS.md</code>). 판단이
+        다르면 여기에 직접 넣어 재계산해보세요 — 결과 화면에 사용자 지정값임을 표시합니다.
+      </p>
+    </details>
   </form>
 </div>
 
@@ -72,8 +94,25 @@
 (function () {
   var GU_LIST = {{ gu_list | tojson }};
   var FACILITY_LIST = {{ facility_list | tojson }};
+  var COEF_DEFAULT = {{ coef_defaults | tojson }};
+  var UNIT_COST_DEFAULT = {{ unit_cost_defaults | tojson }};
   var rowsEl = document.getElementById("rank-rows");
   var errEl = document.getElementById("rank-error");
+
+  // "고급: 가정 계수 직접 입력"의 안내 문구를 선택된 시설의 기본값으로 갱신 (#75).
+  var facilitySelect = document.querySelector('select[name="facility"]');
+  var coefHint = document.getElementById("coefHint");
+  var unitCostHint = document.getElementById("unitCostHint");
+  function updateAssumptionHints() {
+    if (!facilitySelect || !coefHint || !unitCostHint) return;
+    var f = facilitySelect.value;
+    coefHint.textContent = "(기본 " + COEF_DEFAULT[f] + "%p)";
+    unitCostHint.textContent = "(기본 " + UNIT_COST_DEFAULT[f].toLocaleString() + "원)";
+  }
+  if (facilitySelect) {
+    facilitySelect.addEventListener("change", updateAssumptionHints);
+    updateAssumptionHints();
+  }
 
   function opts(values, selected) {
     return values.map(function (v) {
@@ -183,7 +222,9 @@
 {% if result %}
 <div class="bg-white rounded-xl border border-slate-200 p-5">
   <div class="flex items-center justify-between mb-4">
-    <h2 class="text-sm font-semibold text-slate-500">시뮬레이션 결과 — {{ result.region }} · {{ result.facility }} {{ result.num_facilities }}개소</h2>
+    <h2 class="text-sm font-semibold text-slate-500">시뮬레이션 결과 — {{ result.region }} · {{ result.facility }} {{ result.num_facilities }}개소
+      {% if result.custom_assumptions %}<span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-normal align-middle">사용자 지정 계수</span>{% endif %}
+    </h2>
     {% if brief_query %}
     <a href="/simulator/brief{{ brief_query }}" target="_blank"
       class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700 whitespace-nowrap">정책 브리핑 (인쇄용)</a>

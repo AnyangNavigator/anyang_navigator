@@ -29,7 +29,8 @@
   <header class="border-b-2 border-slate-800 pb-3 mb-6">
     <p class="text-xs text-slate-500">안양 균형발전 내비게이터 · 정책 시뮬레이션 브리핑</p>
     <h1 class="text-xl font-bold text-slate-900 mt-1">{{ scenario.name }}</h1>
-    <p class="text-xs text-slate-400 mt-1">생성일 {{ generated_at }} · 대상: {{ result.region }} · {{ result.facility }} {{ result.num_facilities }}개소</p>
+    <p class="text-xs text-slate-400 mt-1">생성일 {{ generated_at }} · 대상: {{ result.region }} · {{ result.facility }} {{ result.num_facilities }}개소
+      {% if result.custom_assumptions %}· <span class="text-amber-700 font-semibold">사용자 지정 계수 사용</span>{% endif %}</p>
   </header>
 
   <section class="mb-6">

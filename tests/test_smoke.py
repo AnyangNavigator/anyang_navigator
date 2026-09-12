@@ -339,6 +339,76 @@ def test_simulator_custom_scenario():
     assert res.status_code == 200
 
 
+def test_simulate_custom_coef_and_unit_cost_override_defaults():
+    # #75: 사용자가 계수·단가를 직접 넣으면 기본 가정값 대신 그 값을 써야 한다.
+    default = simulator.simulate(region="만안구", facility="공영주차시설", num_facilities=2)
+    assert default.custom_assumptions is False
+    assert default.coef_used == simulator.FACILITY_IMPROVEMENT_COEF["공영주차시설"]
+
+    custom = simulator.simulate(
+        region="만안구", facility="공영주차시설", num_facilities=2, coef=5.0
+    )
+    assert custom.custom_assumptions is True
+    assert custom.coef_used == 5.0
+    assert custom.estimated_reduction == 10.0  # 5.0 * 2개소, 기본(2.0*2=4.0)과 다름
+    assert "사용자 지정" in custom.assumption_note
+    assert "기본값은" in custom.assumption_note  # 원래 가정값도 함께 안내
+
+    # unit_cost override는 budget → 개소수 환산에 반영돼야 한다.
+    cheap = simulator.simulate(
+        region="만안구", facility="공영주차시설", budget=1_000_000_000, unit_cost=200_000_000
+    )
+    assert cheap.num_facilities == 5  # 10억 / 2억
+
+
+def test_simulate_rejects_invalid_custom_assumptions():
+    # 음수 계수·0 이하 단가는 물리적으로 무의미하다.
+    for kwargs in ({"coef": -1}, {"unit_cost": 0}):
+        try:
+            simulator.simulate(region="만안구", facility="공영주차시설", num_facilities=1, **kwargs)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"{kwargs}는 ValueError를 내야 한다")
+    # 계수 0은 유효 — "이 시설은 체감 효과가 거의 없다"도 정당한 가정.
+    zero = simulator.simulate(region="만안구", facility="공영주차시설", num_facilities=3, coef=0)
+    assert zero.estimated_reduction == 0.0 and zero.custom_assumptions is True
+
+
+def test_simulator_page_exposes_custom_assumption_inputs():
+    res = client.get("/simulator")
+    assert res.status_code == 200
+    assert 'name="coef"' in res.text and 'name="unit_cost"' in res.text
+    assert "고급: 가정 계수 직접 입력" in res.text
+
+
+def test_simulator_post_with_custom_coef_shows_badge_and_updates_report():
+    res = client.post(
+        "/simulator",
+        data={"region": "만안구", "facility": "공영주차시설", "num_facilities": "2", "coef": "5.0"},
+    )
+    assert res.status_code == 200
+    assert "사용자 지정 계수" in res.text
+    assert "coef=5.0" in res.text  # 브리핑 링크에 그대로 실려야 화면·인쇄본이 안 어긋난다
+
+
+def test_api_simulate_with_custom_assumptions():
+    res = client.post(
+        "/api/simulate",
+        json={
+            "region": "만안구",
+            "facility": "공영주차시설",
+            "num_facilities": 2,
+            "coef": 5.0,
+        },
+    )
+    assert res.status_code == 200
+    result = res.json()["result"]
+    assert result["custom_assumptions"] is True
+    assert result["coef_used"] == 5.0
+    assert result["estimated_reduction"] == 10.0
+
+
 def test_simulator_invalid_facility_shows_error_not_crash():
     # 폼을 우회해 잘못된 facility를 보내도 500이 아니라 에러 메시지가 담긴
     # 200 페이지여야 한다 (#15).
