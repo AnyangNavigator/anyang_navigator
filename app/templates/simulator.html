@@ -38,25 +38,40 @@
       <button class="w-full bg-slate-800 text-white px-3 py-2 rounded-md hover:bg-slate-900">시뮬레이션 실행</button>
     </div>
 
-    <details class="sm:col-span-4 text-xs text-slate-500" {% if form.coef or form.unit_cost %}open{% endif %}>
-      <summary class="cursor-pointer select-none hover:text-slate-700">고급: 가정 계수 직접 입력 (선택)</summary>
-      <div class="grid sm:grid-cols-2 gap-3 mt-2">
-        <div>
-          <label class="block mb-1">1개소당 필요도 감소(%p) <span id="coefHint" class="text-slate-400"></span></label>
-          <input type="number" step="0.1" min="0" name="coef" id="coefInput"
-            value="{{ form.coef if form.coef is not none else '' }}" placeholder="비우면 기본 가정값"
-            class="w-full border border-slate-300 rounded-md px-2 py-1.5">
-        </div>
-        <div>
-          <label class="block mb-1">1개소당 사업비(원) <span id="unitCostHint" class="text-slate-400"></span></label>
-          <input type="number" step="1000000" min="1" name="unit_cost" id="unitCostInput"
-            value="{{ form.unit_cost if form.unit_cost is not none else '' }}" placeholder="비우면 기본 가정값"
-            class="w-full border border-slate-300 rounded-md px-2 py-1.5">
-        </div>
+    <details class="sm:col-span-4 text-xs text-slate-500" open>
+      <summary class="cursor-pointer select-none hover:text-slate-700">가정 계수 직접 입력 — 아래 표를 고치면 실행 시 그대로 반영됩니다</summary>
+      <div class="overflow-x-auto mt-2">
+        <table class="w-full text-xs border-collapse">
+          <thead>
+            <tr class="text-left text-slate-500 border-b border-slate-200">
+              <th class="py-1.5 pr-3">시설 유형</th>
+              <th class="py-1.5 pr-3">1개소당 필요도 감소(%p)</th>
+              <th class="py-1.5 pr-3">1개소당 사업비(원)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for f in facility_list %}
+            <tr data-facility-row="{{ f }}">
+              <td class="py-1.5 pr-3 whitespace-nowrap">{{ f }}</td>
+              <td class="py-1.5 pr-3">
+                <input type="number" step="0.1" min="0" class="coef-cell w-24 border border-slate-300 rounded-md px-2 py-1"
+                  value="{{ form.coef if (form.facility == f and form.coef is not none) else coef_defaults[f] }}">
+              </td>
+              <td class="py-1.5 pr-3">
+                <input type="number" step="1000000" min="1" class="unit-cost-cell w-36 border border-slate-300 rounded-md px-2 py-1"
+                  value="{{ form.unit_cost if (form.facility == f and form.unit_cost is not none) else unit_cost_defaults[f] }}">
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
+      <input type="hidden" name="coef" id="coefInput">
+      <input type="hidden" name="unit_cost" id="unitCostInput">
       <p class="mt-2 text-slate-400 leading-relaxed">
-        <code>/about</code> 4절의 계수·단가는 실측이 아닌 가정값입니다(<code>docs/COEFFICIENTS.md</code>). 판단이
-        다르면 여기에 직접 넣어 재계산해보세요 — 결과 화면에 사용자 지정값임을 표시합니다.
+        <code>/about</code> 4절과 같은 기본값입니다(근거: <code>docs/COEFFICIENTS.md</code>). 숫자를 바꾸면
+        <strong>이 페이지에 있는 동안만</strong> 시뮬레이션에 쓰입니다 — 저장되지 않으니 새로고침하면 기본값으로
+        돌아갑니다. 위 "시설 유형" 선택에 맞는 줄(파란 배경)의 값이 실행 시 적용됩니다.
       </p>
     </details>
   </form>
@@ -99,20 +114,40 @@
   var rowsEl = document.getElementById("rank-rows");
   var errEl = document.getElementById("rank-error");
 
-  // "고급: 가정 계수 직접 입력"의 안내 문구를 선택된 시설의 기본값으로 갱신 (#75).
+  // 가정 계수 표(시설 9종 전부 편집 가능) → 선택된 시설 줄만 하이라이트하고,
+  // 그 값이 기본값과 다를 때만 hidden coef/unit_cost에 실어 보낸다(#75).
+  // 저장하지 않음 — 새로고침하면 서버가 다시 기본값으로 렌더한다.
   var facilitySelect = document.querySelector('select[name="facility"]');
-  var coefHint = document.getElementById("coefHint");
-  var unitCostHint = document.getElementById("unitCostHint");
-  function updateAssumptionHints() {
-    if (!facilitySelect || !coefHint || !unitCostHint) return;
-    var f = facilitySelect.value;
-    coefHint.textContent = "(기본 " + COEF_DEFAULT[f] + "%p)";
-    unitCostHint.textContent = "(기본 " + UNIT_COST_DEFAULT[f].toLocaleString() + "원)";
+  var coefHiddenInput = document.getElementById("coefInput");
+  var unitCostHiddenInput = document.getElementById("unitCostInput");
+  var facilityRows = {};
+  var rowEls = document.querySelectorAll("[data-facility-row]");
+  for (var ri = 0; ri < rowEls.length; ri++) {
+    facilityRows[rowEls[ri].getAttribute("data-facility-row")] = rowEls[ri];
+  }
+  function syncAssumptionTable() {
+    if (!facilitySelect) return;
+    var selected = facilitySelect.value;
+    for (var name in facilityRows) {
+      if (Object.prototype.hasOwnProperty.call(facilityRows, name)) {
+        facilityRows[name].classList.toggle("bg-blue-50", name === selected);
+      }
+    }
+    var row = facilityRows[selected];
+    if (!row) return;
+    var coefVal = parseFloat(row.querySelector(".coef-cell").value);
+    var unitCostVal = parseFloat(row.querySelector(".unit-cost-cell").value);
+    coefHiddenInput.value = coefVal === COEF_DEFAULT[selected] ? "" : coefVal;
+    unitCostHiddenInput.value = unitCostVal === UNIT_COST_DEFAULT[selected] ? "" : unitCostVal;
   }
   if (facilitySelect) {
-    facilitySelect.addEventListener("change", updateAssumptionHints);
-    updateAssumptionHints();
+    facilitySelect.addEventListener("change", syncAssumptionTable);
   }
+  var cellInputs = document.querySelectorAll(".coef-cell, .unit-cost-cell");
+  for (var ci = 0; ci < cellInputs.length; ci++) {
+    cellInputs[ci].addEventListener("input", syncAssumptionTable);
+  }
+  syncAssumptionTable();
 
   function opts(values, selected) {
     return values.map(function (v) {

@@ -199,7 +199,10 @@ def test_builtin_css_covers_template_classes():
     # Tailwind 유틸리티처럼 생긴 토큰만 (Jinja 조각·JS 문자열 연결 결과를 걸러낸다)
     token = re.compile(r"^[a-z][a-z0-9]*(?:[:/.-][a-z0-9.\[\]%/-]+)*$")
     # 앱에서 직접 정의한 클래스 — Tailwind가 만들지 않으므로 검사 대상이 아니다.
-    app_defined = {"no-print", "rank-row", "r-region", "r-facility", "r-budget", "r-del"}
+    app_defined = {
+        "no-print", "rank-row", "r-region", "r-facility", "r-budget", "r-del",
+        "coef-cell", "unit-cost-cell",  # #75 가정 계수 표의 JS 훅 클래스
+    }
 
     def selector(cls: str) -> str:
         return "." + "".join("\\" + ch if ch in ":/.[]%!" else ch for ch in cls)
@@ -375,11 +378,15 @@ def test_simulate_rejects_invalid_custom_assumptions():
     assert zero.estimated_reduction == 0.0 and zero.custom_assumptions is True
 
 
-def test_simulator_page_exposes_custom_assumption_inputs():
+def test_simulator_page_exposes_editable_assumption_table():
     res = client.get("/simulator")
     assert res.status_code == 200
     assert 'name="coef"' in res.text and 'name="unit_cost"' in res.text
-    assert "고급: 가정 계수 직접 입력" in res.text
+    assert "가정 계수 직접 입력" in res.text
+    # 시설 9종 전부 편집 가능한 행으로 나와야 한다 (#75 재요청 — 표 전체 입력).
+    for f in simulator.FACILITY_IMPROVEMENT_COEF:
+        assert f'data-facility-row="{f}"' in res.text
+    assert 'class="coef-cell' in res.text and 'class="unit-cost-cell' in res.text
 
 
 def test_simulator_post_with_custom_coef_shows_badge_and_updates_report():
