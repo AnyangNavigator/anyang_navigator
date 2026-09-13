@@ -37,7 +37,7 @@
       <dd class="font-semibold">{{ s.value }} <span class="text-xs font-normal text-slate-400">{{ s.unit }}/{{ s.per }}</span></dd>
       {% endfor %}
     </dl>
-    <p class="text-xs text-slate-400 mt-2">※ 공공·등록 시설만 집계 (민간 부설주차장·의원 등 제외)</p>
+    <p class="text-xs text-slate-400 mt-2">※ 공공·등록 시설 기준 · <a href="/about#gap" class="text-blue-600 hover:underline">집계 방식 →</a></p>
     {% endif %}
 
     {% if dong_housing_age %}
@@ -49,11 +49,9 @@
       <dt class="text-slate-500">{{ density.gu }} 평균</dt>
       <dd class="font-semibold">{{ gu_housing_age[density.gu].old_house_ratio }}%</dd>
     </dl>
-    <p class="text-xs text-slate-400 mt-2 leading-relaxed">
-      ※ <strong>구 평균은 동안구 {{ gu_housing_age["동안구"].old_house_ratio }}% &gt; 만안구 {{ gu_housing_age["만안구"].old_house_ratio }}%</strong> — 통념과 반대입니다.
-      평촌신도시가 1992년 전후 입주라 이미 30년을 넘겼기 때문으로, "준공 후 30년"이라는 단일 임계값은
-      관리된 대단지 아파트와 원도심 저층 노후 단독·다세대를 같은 값으로 세어 물리적 노후도를 대변하지 못합니다.
-      쇠퇴 진단에는 주택 유형·관리 상태를 함께 봐야 합니다 (<code>data/SOURCES.md</code>).
+    <p class="text-xs text-slate-400 mt-2">
+      ※ 구 평균 동안구 {{ gu_housing_age["동안구"].old_house_ratio }}% &gt; 만안구 {{ gu_housing_age["만안구"].old_house_ratio }}% — <strong>통념과 반대</strong>입니다.
+      <a href="/about#housing-age" class="text-blue-600 hover:underline">왜 그런지 →</a>
     </p>
     {% endif %}
 
@@ -65,11 +63,9 @@
       <dd class="font-semibold">{{ s.value }} <span class="text-xs font-normal text-slate-400">{{ s.per }}</span></dd>
       {% endfor %}
     </dl>
-    <p class="text-xs text-slate-400 mt-2 leading-relaxed">
-      ※ "개소수/인구"가 아니라 <strong>거리(2단계 흡수권역법·2SFCA)</strong>를 반영한 지표입니다. 동 인구는
-      경계의 기하 중심점에 있다고 근사하며, 시설 유형별 반경은 가정값입니다(<code>docs/METRICS.md</code>).
-      병원·공원은 이 지표로 보면 <strong>단순 개소수와 순위가 뒤바뀝니다</strong> — 개소가 많아도 거리가 멀면
-      실제 접근성은 낮을 수 있습니다.
+    <p class="text-xs text-slate-400 mt-2">
+      ※ 개소수가 아닌 <strong>거리 반영 접근성(2SFCA)</strong> — 병원·공원은 개소수와 순위가 뒤바뀝니다.
+      <a href="/about#access" class="text-blue-600 hover:underline">방법론 →</a>
     </p>
     {% endif %}
   </section>
@@ -98,8 +94,8 @@
 <section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
   <h2 class="text-sm font-semibold text-slate-500 mb-1">수요 vs 공급 — 두 신호를 나란히</h2>
   <p class="text-xs text-slate-500 mb-3">
-    사회조사 <strong>수요격차</strong>(만안−동안 필요도 %p)와 실제 <strong>공급격차</strong>(동안−만안 공급량)를 함께 봅니다.
-    두 격차의 <strong>부호가 같으면</strong> 한 구가 "수요는 높은데 공급은 적다" → <span class="text-red-600 font-semibold">우선 검토</span> 대상이며, 어느 구인지 함께 표시합니다(균형발전은 양방향).
+    <strong>수요격차</strong>(만안−동안 필요도)와 <strong>공급격차</strong>(동안−만안 공급량)의 부호가 같으면
+    "수요는 높은데 공급은 적다" → <span class="text-red-600 font-semibold">우선 검토</span> 대상입니다.
   </p>
   <div class="overflow-x-auto">
     <table class="w-full text-sm border-collapse">
@@ -131,8 +127,8 @@
     </table>
   </div>
   <div class="text-xs text-slate-500 mt-3 border-t border-slate-100 pt-3 space-y-1">
-    <p><strong>읽는 법.</strong> 수요가 크게 벌어진 시설(공영주차·보건의료·공원)에서는 오히려 <em>공급이 그 구에 더 많습니다</em> — 만안구는 공공시설 개소수·면적이 적지 않은데도 필요도 응답이 높습니다. 이는 <strong>시설의 양보다 질·접근성·노후도</strong>가 체감 부족의 원인일 가능성을 시사합니다(공급밀도–필요도 순위상관 ρ ≈ +0.59, 기대와 반대 부호 — <code>scripts/analyze_coefficients.py</code>). 두 신호가 일치하는 건 어린이집(만안구)·도서관(동안구)뿐입니다.</p>
-    <p class="text-slate-400">※ 공급은 <strong>공공·등록 시설만</strong> 집계합니다. 아파트 부설주차장·민간 의원 등 민간 공급이 빠져 있어 민간 공급이 두터운 신도시(동안구)가 과소평가될 수 있습니다. 사회복지·문화예술·체육시설은 공급 데이터 미확보로 제외됐습니다.</p>
+    <p><strong>읽는 법.</strong> 수요가 큰 시설(공영주차·보건의료·공원)일수록 오히려 <em>공급이 그 구에 더 많습니다</em> — 공급밀도–필요도 순위상관 ρ ≈ +0.59로 기대와 반대 부호입니다. <strong>양보다 질·접근성·노후도</strong>가 원인일 가능성을 시사합니다.</p>
+    <p class="text-slate-400">※ <strong>공공·등록 시설만</strong> 집계(민간 부설주차장·의원 등 제외). <a href="/about#gap" class="text-blue-600 hover:underline">전체 해설 →</a></p>
   </div>
 </section>
 
@@ -152,9 +148,9 @@
 <section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">
   <h2 class="text-sm font-semibold text-slate-500 mb-1">행정동 유형 군집분석 (비지도 학습)</h2>
   <p class="text-xs text-slate-500 mb-3">
-    인구 구조(고령·유소년·생산연령비, 평균 가구원수)와 공공시설 공급 6종을 표준화해 KMeans로 31개 동을 유형화했습니다.
-    군집 수 <strong>k={{ clustering.k }}</strong>는 실루엣 점수({{ clustering.silhouette }})로 자동 선택했습니다.
+    인구 구조·공공시설 공급을 표준화해 KMeans로 31개 동을 유형화(k={{ clustering.k }})했습니다.
     <span class="text-slate-400">군집은 <strong>유형 분류일 뿐 우열이 아닙니다.</strong></span>
+    <a href="/about#cluster" class="text-blue-600 hover:underline">방법론 →</a>
   </p>
   <div class="grid sm:grid-cols-3 gap-3">
     {% for c in clustering.clusters %}
@@ -172,9 +168,7 @@
     {% endfor %}
   </div>
   <p class="text-xs text-slate-500 mt-3 border-t border-slate-100 pt-3">
-    <strong>읽는 법.</strong> 군집이 만안구/동안구 경계와 <em>정확히 일치하지 않습니다</em> — 일부 만안구 동이 신도시형 군집에, 일부 동안구 동이 원도심형 군집에 들어갑니다.
-    행정구역 이분법보다 <strong>실제 인구·시설 프로필이 만드는 유형</strong>이 정책 단위로 더 적절할 수 있음을 시사합니다.
-    산출 로직: <code>app/cluster.py</code> (<code>random_state</code> 고정 — 재현 가능).
+    <strong>읽는 법.</strong> 군집이 만안구/동안구 경계와 <em>정확히 일치하지 않습니다</em> — 행정구역보다 실제 인구·시설 프로필이 정책 단위로 더 적절할 수 있습니다.
   </p>
 </section>
 
@@ -194,7 +188,7 @@
     <p id="mapHover" class="text-xs text-slate-600 font-medium whitespace-nowrap"></p>
   </div>
   <p id="mapStatus" class="text-xs text-slate-400 mt-2"></p>
-  <p class="text-xs text-slate-400 mt-1">※ 공급 지표는 <strong>인구 기준으로 정규화</strong>했습니다 — 개소·병상은 1,000명당, 공원은 1인당 면적(㎡). 동 인구 규모가 커 보이는 착시를 막기 위함입니다(<code>docs/METRICS.md</code>). 공공·등록 시설만 집계하며 민간 부설주차장·의원 등은 빠져 있습니다.</p>
+  <p class="text-xs text-slate-400 mt-1">※ 공급 지표는 인구 기준 정규화. <a href="/about#gap" class="text-blue-600 hover:underline">집계 기준 →</a></p>
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mt-6">

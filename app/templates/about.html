@@ -44,7 +44,7 @@
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-  <h2 class="text-sm font-semibold text-slate-500 mb-3">3. 격차 계산</h2>
+  <h2 id="gap" class="text-sm font-semibold text-slate-500 mb-3">3. 격차 계산</h2>
   <p class="text-sm text-slate-600 mb-2">시설 유형별 <strong>격차 = 만안구 필요도 응답률 − 동안구 필요도 응답률</strong> (%p). 양수면 만안구가 더 목마른 것, 음수면 동안구가 더 목마른 것입니다.</p>
   <p class="text-xs text-slate-400">예: 공영주차시설 만안구 41.7% − 동안구 26.5% = <strong>+15.2%p</strong>. 이 수치는 "지금의 불편함"이 아니라 "앞으로 필요하다는 응답"의 차이입니다 (체감 불만족은 두 구가 비슷).</p>
   <div class="text-xs text-slate-500 mt-3 border-t border-slate-100 pt-3 space-y-1">
@@ -56,7 +56,7 @@
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-  <h2 class="text-sm font-semibold text-slate-500 mb-3">3-1. 행정동 유형 군집분석</h2>
+  <h2 id="cluster" class="text-sm font-semibold text-slate-500 mb-3">3-1. 행정동 유형 군집분석</h2>
   <p class="text-sm text-slate-600 mb-2">31개 행정동을 <strong>인구 구조</strong>(65세 이상 비율·0~14세 비율·생산연령 비율·평균 가구원수)와 <strong>공공시설 공급 6종</strong>(인구 기준 정규화)으로 표현한 뒤, 표준화(<code>StandardScaler</code>) 후 <strong>KMeans</strong>로 유형화합니다.</p>
   <ul class="text-xs text-slate-500 space-y-1 list-disc pl-5">
     <li>군집 수 <code>k</code>는 3~6 중 <strong>실루엣 점수</strong>가 가장 높은 값을 자동 선택합니다.</li>
@@ -68,7 +68,7 @@
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-  <h2 class="text-sm font-semibold text-slate-500 mb-3">3-2. 노후주택 비율 — 양적 지표의 한계 사례</h2>
+  <h2 id="housing-age" class="text-sm font-semibold text-slate-500 mb-3">3-2. 노후주택 비율 — 양적 지표의 한계 사례</h2>
   <p class="text-sm text-slate-600 mb-2">SGIS Open API에서 31개 행정동 전부의 <strong>준공 30년 이상 주택 수 / 총주택 수 / 비율</strong>을 받았습니다(「인구주택총조사」 기반, 2024). 대시보드 동 카드에 표시됩니다.</p>
   <p class="text-sm text-slate-600 mb-2"><strong>결과가 통념과 반대입니다.</strong> 구 평균 <strong>동안구 42.2%(46,279/109,699호) &gt; 만안구 25.9%(19,261/74,287호)</strong>이고, 노후 비율 상위 7개 동이 전부 동안구입니다(달안동 100.0%, 부흥동 99.9%, 평안동 88.4%, 범계동 88.2% …).</p>
   <ul class="text-xs text-slate-500 space-y-1 list-disc pl-5">
@@ -80,7 +80,7 @@
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-  <h2 class="text-sm font-semibold text-slate-500 mb-3">3-3. 공간 접근성 (2SFCA)</h2>
+  <h2 id="access" class="text-sm font-semibold text-slate-500 mb-3">3-3. 공간 접근성 (2SFCA)</h2>
   <p class="text-sm text-slate-600 mb-2">"동 안에 몇 개 있는가"(개소수)만으로는 실제 도달 가능성을 못 담습니다. <strong>2단계 흡수권역법(2SFCA, Luo &amp; Wang 2003)</strong> 으로 시설-인구 간 <strong>거리</strong>까지 반영한 접근성을 계산합니다 — 시설 j의 공급을 반경 안 인구로 나눈 뒤(1단계), 각 행정동 반경 안의 그 값을 합산(2단계)합니다.</p>
   <p class="text-sm text-slate-600 mb-2"><strong>개소수와 방향이 반대로 나오는 시설이 있습니다.</strong> 보건의료시설은 밀도로는 만안구가 근소 우위(6.58 vs 6.21)지만, 접근성으로는 동안구가 뚜렷이 높습니다(4.80 vs 7.50) — 만안구 병상이 소수 대형시설에 쏠려 다수 주민이 반경 밖이기 때문입니다. 도시공원도 밀도(15.6 vs 3.24)와 접근성(1.04 vs 1.89)의 방향이 반대입니다 — 만안구 공원면적은 수리산 등 산지형 대형공원에 쏠려 생활권 밖입니다.</p>
   <ul class="text-xs text-slate-500 space-y-1 list-disc pl-5">
@@ -92,7 +92,7 @@
 </section>
 
 <section class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-  <h2 class="text-sm font-semibold text-slate-500 mb-1">4. What-if 시뮬레이터의 가정 계수</h2>
+  <h2 id="sim-coef" class="text-sm font-semibold text-slate-500 mb-1">4. What-if 시뮬레이터의 가정 계수</h2>
   <p class="text-xs text-amber-600 mb-3">⚠️ 아래 값은 실측이 아닌 <strong>탄력성 가정값</strong>입니다. 실제 시설 확충 후 필요도 응답률 변화를 추적한 데이터가 아니며, 정책 우선순위를 <em>논의</em>하기 위한 의사결정 보조 수치입니다.</p>
   <div class="overflow-x-auto">
     <table class="w-full text-sm border-collapse">
