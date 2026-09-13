@@ -377,6 +377,20 @@ def test_simulator_default_scenario():
     assert "양지마을" in res.text
 
 
+def test_yangji_scenario_uses_verified_real_figures():
+    # 이전 버전은 "총사업비 153억원·주차장 3개소"였는데 실제 근거를 못 찾았다.
+    # 안양시청 공식 페이지·언론보도(2025-12-31)로 재확인한 실제 수치로 교체함
+    # (총사업비 3,329억원, LH 499호 공동주택, 시 재정지원 286억원). 시설별
+    # 개소·예산 배분은 비공개라 num_facilities=1을 대표 예시로 못 박는다 —
+    # 다시 "153억원"·"3개소" 같은 근거 없는 숫자로 돌아가지 않게 회귀로 고정.
+    scenario = simulator.SCENARIOS["yangji"]
+    assert scenario["num_facilities"] == 1
+    assert "budget" not in scenario  # 계산에 안 쓰이던 죽은 필드 제거
+    assert "3,329억원" in scenario["description"]
+    assert "499호" in scenario["description"]
+    assert "대표로 뽑아" in scenario["description"]  # 예시일 뿐이라는 한계 명시
+
+
 def test_simulator_brief_scenario():
     res = client.get("/simulator/brief", params={"scenario_id": "yangji"})
     assert res.status_code == 200
