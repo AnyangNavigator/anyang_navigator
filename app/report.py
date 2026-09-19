@@ -42,7 +42,8 @@ SYSTEM_PROMPT = (
     "명확히 구분해서 서술할 것 — 동 단위 만족도 데이터는 존재하지 않으므로 이를 지어내지 말 것. "
     "(2) 숫자를 과장하거나 임의로 추정하지 말고 주어진 값만 인용할 것. "
     "(3) 시뮬레이션 결과가 있다면 이는 실측이 아닌 추정 가정임을 명시할 것. "
-    "(4) '역효과 경고'가 주어지면 그 내용을 리포트 첫 문장에 반드시 포함할 것. "
+    "(4) [시뮬레이션 결과]에 '역효과 경고' 항목이 있으면 그 내용을 리포트 첫 문장에 반드시 "
+    "포함하고, 그 항목이 아예 없으면 역효과를 언급하거나 지어내지 말 것. "
     "(5) 마크다운 제목(#)·표는 쓰지 말고 짧은 문단으로 작성할 것."
 )
 
@@ -194,9 +195,13 @@ def _scenario_prompt(scenario: dict, result: SimulationResult) -> str:
         "현재 격차(만안구-동안구, %p)": result.current_gap,
         "예상 격차 감소폭(%p, 가정 추정)": result.estimated_reduction,
         "시뮬레이션 후 예상 격차(%p, 가정 추정)": result.projected_gap,
-        "역효과 경고": result.adverse_warning or "없음",
-        "가정 설명": result.assumption_note,
     }
+    # 값이 없을 때 "역효과 경고: 없음"을 그대로 넘기면, 모델이 규칙 (4)를 "항목이
+    # 있으니 언급해야 한다"로 오해해 그 라벨·값을 리포트에 그대로 새어나가게 하는
+    # 사례가 있었다(가드레일 (4) 리뷰). 경고가 실제로 있을 때만 키 자체를 넣는다.
+    if result.adverse_warning:
+        facts["역효과 경고"] = result.adverse_warning
+    facts["가정 설명"] = result.assumption_note
     return (
         f"정책 시나리오: {scenario['name']}\n{scenario['description']}\n\n"
         f"[시뮬레이션 결과]\n{json.dumps(facts, ensure_ascii=False, indent=2)}\n\n"

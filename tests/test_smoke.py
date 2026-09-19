@@ -1099,6 +1099,58 @@ def test_scenario_prompt_omits_raw_internal_fields(monkeypatch):
     assert "가정 기반 추정" in prompt
 
 
+def test_scenario_prompt_omits_warning_key_when_no_warning():
+    # "역효과 경고: 없음"을 컨텍스트에 그대로 넣으면, 가드레일 (4)("경고가
+    # 주어지면 반드시 언급")를 모델이 "항목이 있으니 언급해야 한다"로 오해해
+    # 그 라벨·값을 리포트 본문에 그대로 옮겨 적는 사례가 있었다(제출서류
+    # 검증 리뷰). 경고가 실제로 없으면 키 자체를 프롬프트에서 뺀다.
+    _, res = simulator.run_scenario("yangji")  # 만안구·공영주차 — 정상 시나리오
+    assert res.adverse_warning == ""
+    prompt = report._scenario_prompt({"name": "n", "description": "d"}, res)
+    assert "역효과 경고" not in prompt
+    assert "없음" not in prompt
+
+
+def test_scenario_prompt_includes_warning_key_when_present():
+    res = simulator.simulate(region="동안구", facility="공영주차시설", num_facilities=3)
+    assert res.adverse_warning
+    prompt = report._scenario_prompt({"name": "n", "description": "d"}, res)
+    assert "역효과 경고" in prompt
+    assert res.adverse_warning in prompt
+
+
+def test_chatbot_sim_block_omits_warning_key_when_no_warning():
+    from app.chatbot import _sim_block
+
+    block = _sim_block("만안구에 공영주차시설 1개 지으면?", "공영주차시설", "만안구")
+    assert block is not None
+    assert "경고" not in block
+
+
+def test_chatbot_sim_block_includes_warning_key_when_present():
+    from app.chatbot import _sim_block
+
+    block = _sim_block("동안구에 공영주차시설 3개 지으면?", "공영주차시설", "동안구")
+    assert block is not None
+    assert "경고" in block and block["경고"]
+
+
+def test_about_page_facility_count_matches_registry():
+    # REGISTRY에 시설 종류를 추가했는데(#71·#72처럼) /about·cluster.py 설명 문구를
+    # 안 고치면, 화면이 실제와 다른 숫자를 계속 보여준다 — 제출서류 검증에서 실제로
+    # "공급 6종"이 남아 있는 채 10종이 된 걸 놓쳤던 사례가 있었다. 개수를 강제 일치.
+    from pathlib import Path
+
+    from app import facilities
+
+    n = len(facilities.REGISTRY)
+    about_html = (Path(__file__).resolve().parent.parent / "app/templates/about.html").read_text(encoding="utf-8")
+    assert f"공공시설 공급 {n}종" in about_html
+
+    cluster_doc = (Path(__file__).resolve().parent.parent / "app/cluster.py").read_text(encoding="utf-8")
+    assert f"공공시설 공급 {n}종" in cluster_doc
+
+
 def test_call_openai_falls_back_when_content_is_null(monkeypatch):
     # 콘텐츠 필터·tool_calls 등으로 OpenAI가 정상 200 + 정상 JSON이지만
     # content: null을 돌려주는 경우도 폴백돼야 한다 (PR #18 리뷰에서 발견).
