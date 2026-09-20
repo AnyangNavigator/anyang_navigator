@@ -187,13 +187,18 @@ def _sim_block(question: str, facility: str, region: str | None) -> dict | None:
         r = simulator.simulate(region=region, facility=facility, num_facilities=int(m.group(1)))
     except ValueError as e:
         return {"시뮬레이션 불가": str(e)}
-    return {
+    block = {
         "가정": f"{region}에 {facility} {int(m.group(1))}개소 신규 공급",
         "현재 격차(%p)": r.current_gap,
         "시뮬레이션 후 격차(%p)": r.projected_gap,
-        "경고": r.adverse_warning or "없음",
         "주의": "하드코딩 가정 계수 기반 추정. 실측 아님",
     }
+    # "경고: 없음"을 그대로 컨텍스트에 넣으면 LLM이 그 라벨을 답변에 그대로
+    # 옮겨 적는 사례가 있다(report.py 가드레일 (4) 리뷰와 동일 원인). 경고가
+    # 실제로 있을 때만 키를 넣는다.
+    if r.adverse_warning:
+        block["경고"] = r.adverse_warning
+    return block
 
 
 def _ranked_needs(gu: str) -> dict:
@@ -323,7 +328,7 @@ def _rule_based_answer(
                     f" {sim['가정']} 시 격차는 {sim['현재 격차(%p)']}%p → "
                     f"{sim['시뮬레이션 후 격차(%p)']}%p로 추정됩니다(가정 계수 기반)."
                 )
-                if sim["경고"] != "없음":
+                if sim.get("경고"):
                     s += f" ⚠ {sim['경고']}"
             elif sim:
                 s += f" (시뮬레이션 불가: {sim['시뮬레이션 불가']})"

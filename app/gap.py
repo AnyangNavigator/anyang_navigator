@@ -88,7 +88,7 @@ def demand_supply_gaps() -> list[dict]:
 def dong_supply(dong_name: str) -> dict[str, dict] | None:
     """동 하나의 공급 지표 — 대시보드 동 단위 카드용. 값 + 라벨/단위를 함께 준다.
 
-    `REGISTRY` 전체(6종, 약국 포함)를 돌려준다. 수요-공급 비교표(`demand_supply_gaps`)는
+    `REGISTRY` 전체(10종, 약국 포함)를 돌려준다. 수요-공급 비교표(`demand_supply_gaps`)는
     사회조사 문항과 대응되는 5종만 쓰지만, 동 카드는 보유한 공급 정보를 모두 보여준다.
     """
     supply = facilities.supply_by_dong().get(dong_name)

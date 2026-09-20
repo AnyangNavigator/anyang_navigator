@@ -52,7 +52,7 @@
 │   ├── population_by_dong.csv             ← 31개 행정동별 인구·세대 (행안부 주민등록인구통계, 2025.12.31)
 │   ├── population_by_age.csv              ← 행정동별 5세 단위 연령 인구
 │   ├── survey_1*.csv                      ← 구 단위: 2025 제11회 안양시 사회조사 (문항 11·12·16-3)
-│   ├── facilities_*.csv                   ← 시설 현황 6종 (공공데이터포털 표준데이터 / 경기데이터드림)
+│   ├── facilities_*.csv                   ← 시설 현황 10종 (공공데이터포털 표준데이터 / 경기데이터드림)
 │   └── anyang_dong_boundaries.geojson     ← 행정동 경계 (출처 교체 예정 → data/SOURCES.md)
 └── reference/                             ← 원본/배경 자료 (숫자 인용 시 data/ CSV 우선)
     ├── 안양균형발전내비게이터.docx          ← 최초 아이디어 요약
